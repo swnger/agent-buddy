@@ -1,7 +1,7 @@
 #pragma once
 #include "AgentBadges.h"
 #include "CharacterMotion.h"
-#include "Config.h"
+#include "FrameCoverage.h"
 #include <cstddef>
 
 namespace copilot {
@@ -28,7 +28,7 @@ class CharacterEffects {
   bool restore(uint16_t* frame);
   bool render(const CharacterState& state, uint16_t* frame);
   // Marks 16x16 framebuffer tiles touched by current effects and overlays.
-  void markTiles(const uint16_t* frame, uint32_t* tileMask, int tileRows) const;
+  void markTiles(const uint16_t* frame, FrameCoverage::Tiles& tiles) const;
   const char* error() const { return error_; }
 
  private:

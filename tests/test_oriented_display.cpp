@@ -58,7 +58,7 @@ void checkAnimation(copilot::OrientedDisplay& display, StubPanel& panel, Arduino
   auto checkFrame = [&] {
     resetLog();
     const auto changes = coverage.changesFrom(previous, pixels.data(), previousPixels.data());
-    assert(display.flushAnimation(pixels.data(), coverage, changes));
+    assert(display.flushAnimation(pixels.data(), changes));
     previous = coverage;
     previousPixels = pixels;
     size_t offset = 0;
@@ -120,7 +120,7 @@ void checkAnimation(copilot::OrientedDisplay& display, StubPanel& panel, Arduino
   paint(coverage.effects, 205, 233, 0xffff);
   spi_stub::failSubmission = 0;
   const auto changes = coverage.changesFrom(previous, pixels.data(), previousPixels.data());
-  assert(!display.flushAnimation(pixels.data(), coverage, changes));
+  assert(!display.flushAnimation(pixels.data(), changes));
   std::fill(shown.begin(), shown.end(), 0xcafe);
   checkFrame();
 }
@@ -223,32 +223,6 @@ int main() {
     assert(std::memcmp(bus.bytes.data(), expected.data(), bus.bytes.size()) == 0);
     assert(panel.window.x == 0 && panel.window.y == 0 && panel.window.width == kPanelWidth
            && panel.window.height == kPanelHeight && !panel.started);
-  }
-  // Sparse character frame with 16x16 tileMask must match unmasked rotated scanout bit-for-bit.
-  {
-    std::vector<uint16_t> sparse(kCharacterFrameWidth * kCharacterFrameHeight, 0);
-    constexpr int kTileRows = (kCharacterFrameHeight + 15) / 16;
-    uint32_t mask[kTileRows]{};
-    for (int y = 90; y < 340; ++y) {
-      for (int x = 80; x < 320; ++x) {
-        const int dx = x - 200, dy = y - 215;
-        if (dx * dx + dy * dy <= 115 * 115) {
-          sparse[y * kCharacterFrameWidth + x] = static_cast<uint16_t>((x * 7 + y * 13) | 1);
-          mask[y >> 4] |= uint32_t(1) << (x >> 4);
-        }
-      }
-    }
-    const ScreenPixels sparseSource{sparse.data(), kCharacterFrameX, 0, kCharacterFrameWidth,
-                                    kCharacterFrameHeight, Rgb565Order::Display};
-    for (float angle : {-0.59f, 0.61f, kOrientationPi / 2, kOrientationPi, -2.18f}) {
-      assert(display.setAngle(angle));
-      const std::vector<uint16_t> expected = scanout(sparseSource, display.angle());
-      bus.bytes.clear();
-      assert(display.flushFrame(sparse.data(), kCharacterFrameX, 0,
-                                kCharacterFrameWidth, kCharacterFrameHeight, mask, kTileRows));
-      assert(bus.bytes.size() == expected.size() * sizeof(uint16_t));
-      assert(std::memcmp(bus.bytes.data(), expected.data(), bus.bytes.size()) == 0);
-    }
   }
   assert(display.setAngle(0));
   bus.bytes.clear();

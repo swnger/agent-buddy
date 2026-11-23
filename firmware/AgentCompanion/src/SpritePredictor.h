@@ -10,7 +10,6 @@
 #else
 #define SPRITE_PREDICTOR_OPT
 #endif
-#define SPRITE_PREDICTOR_IRAM
 
 namespace copilot {
 // The columns [begin, end) of an output row that hold every pixel that a decode changed; begin >= end
@@ -29,7 +28,6 @@ class SpritePredictor {
              SpriteRowChange* changes = nullptr) {
     output_ = nullptr;
     onRow_ = nullptr;
-    onRowCtx_ = nullptr;
     if (!stride) stride = width;
     if (!output || reinterpret_cast<uintptr_t>(output) % alignof(uint16_t)
         || !width || width > kCharacterFrameWidth || stride < width || stride > kCharacterFrameWidth
@@ -50,7 +48,6 @@ class SpritePredictor {
   bool resetRows(size_t width, size_t height, SpriteRowCallback onRow, void* ctx) {
     output_ = nullptr;
     onRow_ = nullptr;
-    onRowCtx_ = nullptr;
     if (!onRow || !width || width > kCharacterFrameWidth || !height) return false;
     onRow_ = onRow;
     onRowCtx_ = ctx;
@@ -63,7 +60,7 @@ class SpritePredictor {
     return true;
   }
 
-  SPRITE_PREDICTOR_IRAM SPRITE_PREDICTOR_OPT
+  SPRITE_PREDICTOR_OPT
   bool consume(const uint8_t* encoded, size_t bytes) {
     if ((!output_ && !onRow_) || !encoded || (bytes & 1u) || bytes / 2 > remaining_) return false;
     size_t left = bytes / 2;

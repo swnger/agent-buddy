@@ -66,26 +66,18 @@ void OrientedDisplay::flush(bool forceFlush) {
 }
 
 bool OrientedDisplay::flushFrame(
-    const uint16_t* pixels, int x, int y, int width, int height,
-    const uint32_t* tileMask, int tileRows) {
+    const uint16_t* pixels, int x, int y, int width, int height) {
   hasShown_ = false;
-  return flushSource({pixels, x, y, width, height, Rgb565Order::Display, tileMask, tileRows});
+  return flushSource({pixels, x, y, width, height, Rgb565Order::Display});
 }
 
-bool OrientedDisplay::flushAnimation(const uint16_t* pixels, const FrameCoverage& coverage,
-                                     const FrameCoverage::Tiles& changes) {
+bool OrientedDisplay::flushAnimation(const uint16_t* pixels, const FrameCoverage::Tiles& changes) {
   ScreenPixels source{pixels, kCharacterFrameX, 0, kCharacterFrameWidth,
                       kCharacterFrameHeight, Rgb565Order::Display};
   // A menu, a new orientation, or an interrupted transfer needs a complete first image.
   // Full-frame and scaled poses may change every tile. Use the normal streaming DMA then.
   if (!hasShown_ || !pixels || std::all_of(changes.begin(), changes.end(),
                                           [](uint32_t row) { return row == UINT32_MAX; })) {
-    FrameCoverage::Tiles occupied;
-    for (size_t y = 0; y < occupied.size(); ++y) occupied[y] = coverage.art[y] | coverage.effects[y];
-    if (!std::all_of(occupied.begin(), occupied.end(), [](uint32_t row) { return row == UINT32_MAX; })) {
-      source.tileMask = occupied.data();
-      source.tileRows = occupied.size();
-    }
     if (!hasShown_) samplesValid_ = false;
     hasShown_ = flushSource(source);
     return hasShown_;
@@ -157,6 +149,8 @@ bool OrientedDisplay::flushSource(const ScreenPixels& source) {
     return false;
   }
 
+  const ScreenTransform transform(kPanelWidth, kPanelHeight, kDisplaySize, kShownContentSize,
+                                  angle(), kRoundPanel && source.order == Rgb565Order::Display);
   // Upright character frames keep the original direct, DMA-staged transfer when the panel shows
   // content at full size; a panel narrower or shorter than the content gets the part that it shows.
   // A panel that shows the content smaller always scales through the transform below.
@@ -182,65 +176,13 @@ bool OrientedDisplay::flushSource(const ScreenPixels& source) {
     const int width = right - left;
     const uint16_t* first = source.pixels + (top - kPanelContentY - source.y) * source.width
                             + (left - kPanelContentX - source.x);
-    panel_->startWrite();
-    panel_->writeAddrWindow(left, top, width, bottom - top);
-    panel_->endWrite();
-    if (!dma_.start()) {
-      error_ = dma_.error();
-      return false;
-    }
-    const size_t halfBytes = dma_.bufferBytes();
-    if (width == source.width) {
-      // Whole source rows: overlap PSRAM->DMA copy with double-buffered QSPI DMA transfer.
-      const auto* bytes = reinterpret_cast<const uint8_t*>(first);
-      const size_t count = static_cast<size_t>(width) * (bottom - top) * sizeof(uint16_t);
-      for (size_t offset = 0; offset < count; offset += halfBytes) {
-        const size_t batch = std::min(halfBytes, count - offset);
-        const int64_t waiting = esp_timer_get_time();
-        uint8_t* slot = dma_.acquire();
-        writeUs_ += esp_timer_get_time() - waiting;
-        if (!slot) break;
-        const int64_t started = esp_timer_get_time();
-        std::memcpy(slot, bytes + offset, batch);
-        const int64_t copied = esp_timer_get_time();
-        composeUs_ += copied - started;
-        if (!dma_.submit(batch)) break;
-        writeUs_ += esp_timer_get_time() - copied;
-      }
-    } else {
-      // The middle of each source row.
-      const size_t rowBytes = static_cast<size_t>(width) * sizeof(uint16_t);
-      const int rowsPerBatch = static_cast<int>(halfBytes / rowBytes);
-      for (int row = top; row < bottom; row += rowsPerBatch) {
-        const int rows = std::min(rowsPerBatch, bottom - row);
-        const int64_t waiting = esp_timer_get_time();
-        uint8_t* slot = dma_.acquire();
-        writeUs_ += esp_timer_get_time() - waiting;
-        if (!slot) break;
-        const int64_t started = esp_timer_get_time();
-        for (int index = 0; index < rows; ++index)
-          std::memcpy(slot + index * rowBytes,
-                      first + static_cast<size_t>(row - top + index) * source.width, rowBytes);
-        const int64_t copied = esp_timer_get_time();
-        composeUs_ += copied - started;
-        if (!dma_.submit(rows * rowBytes)) break;
-        writeUs_ += esp_timer_get_time() - copied;
-      }
-    }
-    const int64_t waiting = esp_timer_get_time();
-    const bool completed = dma_.finish();
-    writeUs_ += esp_timer_get_time() - waiting;
-    if (!completed && !error_) error_ = dma_.error();
-    return error_ == nullptr;
+    return writeWindow(source, transform, left, top, width, bottom - top, first);
   }
-
-  const ScreenTransform transform(kPanelWidth, kPanelHeight, kDisplaySize, kShownContentSize,
-                                  angle(), kRoundPanel && source.order == Rgb565Order::Display);
   return writeWindow(source, transform, 0, 0, kPanelWidth, kPanelHeight);
 }
 
 bool OrientedDisplay::writeWindow(const ScreenPixels& source, const ScreenTransform& transform,
-                                  int x, int y, int width, int height) {
+                                  int x, int y, int width, int height, const uint16_t* direct) {
   const size_t capacity = dma_.bufferBytes() / sizeof(uint16_t);
   const int rowsPerBatch = static_cast<int>(std::min(
       capacity / width, static_cast<size_t>(height)));
@@ -258,7 +200,12 @@ bool OrientedDisplay::writeWindow(const ScreenPixels& source, const ScreenTransf
     writeUs_ += esp_timer_get_time() - waiting;
     if (!output) break;
     const int64_t started = esp_timer_get_time();
-    if (!transform.renderWindow(source, x, y + row, width, rows, output, capacity)) {
+    if (direct && width == source.width) {
+      std::memcpy(output, direct + row * width, rows * width * sizeof(uint16_t));
+    } else if (direct) {
+      for (int i = 0; i < rows; ++i)
+        std::memcpy(output + i * width, direct + (row + i) * source.width, width * sizeof(uint16_t));
+    } else if (!transform.renderWindow(source, x, y + row, width, rows, output, capacity)) {
       error_ = "Display scanout failed.";
       break;
     }

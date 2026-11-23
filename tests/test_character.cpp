@@ -1,3 +1,4 @@
+#include "../firmware/AgentCompanion/src/CharacterFrame.h"
 #include "../firmware/AgentCompanion/src/CharacterEffects.h"
 #include "../firmware/AgentCompanion/src/CharacterModel.h"
 #include <algorithm>
@@ -588,104 +589,25 @@ static void benchmarkEffects() {
   std::cout << "Effects object: " << sizeof(CharacterEffects) << " bytes\n";
 }
 
-static void peekUpcomingTransitionsAndHolds() {
-  // Preloading during the neutral hold must predict the automatic or queued turn without
-  // advancing its RNG, consuming a queued request, or changing its blink timing.
-  for (bool queued : {false, true}) {
-    CharacterMotion motion(37, 13), reference(37, 13);
-    if (queued) {
-      assert(motion.requestIdleDirection(4));
-      assert(reference.requestIdleDirection(4));
+static void forecastMatchesMotion() {
+  PackHeader pack{};
+  pack.motionSpeed = 1.25f;
+  pack.walkDirection = 9;
+  pack.walkFrames = 8;
+  pack.walkFps = 7;
+  CharacterMotion motion(37, 13);
+  PoseForecast forecast;
+  for (int frame = 0; frame < 900; ++frame) {
+    if (frame == 220) motion.setMode(Mode::Working);
+    if (frame == 540) motion.surprise();
+    motion.update(pack.motionSpeed / 60.);
+    forecast.advance(motion, pack, 1. / 60);
+    CharacterMotion reference = motion;
+    for (unsigned i = 0; i < forecast.size(); ++i) {
+      reference.update(pack.motionSpeed / 60.);
+      const auto expected = framePose(reference.state(), pack), actual = forecast.at(i);
+      assert(actual.direction == expected.direction && actual.index == expected.index);
     }
-    SpritePose upcoming[24];
-    const size_t count = motion.peekUpcoming(upcoming, 24);
-    assert(count > 1 && upcoming[0].index == 1);
-    const auto direction = upcoming[0].direction;
-    if (queued) assert(direction == 4);
-    for (size_t index = 0; index < count; ++index)
-      assert(upcoming[index].direction == direction && upcoming[index].index == index + 1);
-    bool sawTurn = false;
-    for (int tick = 0; tick < 600; ++tick) {
-      motion.peekUpcoming(upcoming, 24);
-      motion.update(1. / 60);
-      reference.update(1. / 60);
-      const SpritePose pose = motion.state().pose, expected = reference.state().pose;
-      assert(pose.direction == expected.direction && pose.index == expected.index
-             && pose.blinkLevel == expected.blinkLevel && pose.blinkBlend == expected.blinkBlend);
-      if (!sawTurn && pose.index) {
-        assert(pose.direction == direction && pose.index == 1);
-        sawTurn = true;
-      }
-    }
-    assert(sawTurn);
-  }
-  // Idle returning to center for a pending Working switch peeks track 9 right after the return.
-  {
-    CharacterMotion motion(42, 13);
-    until(motion, [](const auto& s) { return s.mode == Mode::Idle && s.pose.index >= 5; });
-    const uint8_t idleDir = motion.state().pose.direction;
-    const uint8_t idleIdx = motion.state().pose.index;
-    assert(motion.setMode(Mode::Working));
-    SpritePose upcoming[32];
-    const size_t n = motion.peekUpcoming(upcoming, 32);
-    assert(n > idleIdx);
-    assert(upcoming[0].direction == idleDir && upcoming[0].index == idleIdx - 1);
-    bool sawWorkingEntry = false;
-    for (size_t i = 0; i < n; ++i) {
-      if (upcoming[i].direction == 9 && upcoming[i].index == 1) {
-        sawWorkingEntry = true;
-        break;
-      }
-    }
-    assert(sawWorkingEntry);
-  }
-  // Attention Hold and AttentionBack peek the alternate attention track (11 <-> 12).
-  {
-    CharacterMotion motion(27, 13);
-    assert(motion.setMode(Mode::Attention));
-    until(motion, [](const auto& s) { return s.mode == Mode::Attention && s.pose.direction == 11 && s.pose.index == 23; });
-    SpritePose upcoming[48];
-    const size_t n = motion.peekUpcoming(upcoming, 48);
-    assert(n >= 24);
-    assert(upcoming[0].direction == 11 && upcoming[0].index == 22);
-    bool sawAlt = false;
-    for (size_t i = 0; i < n; ++i) {
-      if (upcoming[i].direction == 12 && upcoming[i].index == 1) {
-        sawAlt = true;
-        break;
-      }
-    }
-    assert(sawAlt);
-  }
-  // Working Hold predicts the exact deterministic next look-away direction and target.
-  {
-    CharacterMotion motion(27, 13);
-    assert(motion.setMode(Mode::Working));
-    until(motion, [](const auto& s) { return s.mode == Mode::Working && s.pose.direction == 9 && s.pose.index == 23; });
-    SpritePose upcoming[48];
-    const size_t n = motion.peekUpcoming(upcoming, 48);
-    uint8_t predictedLookDir = 255;
-    uint8_t predictedLookMax = 0;
-    for (size_t i = 0; i < n; ++i) {
-      if (upcoming[i].direction < 2) {
-        if (predictedLookDir == 255) predictedLookDir = upcoming[i].direction;
-        if (upcoming[i].direction == predictedLookDir && upcoming[i].index > predictedLookMax)
-          predictedLookMax = upcoming[i].index;
-      }
-    }
-    assert(predictedLookDir < 2 && predictedLookMax >= 8 && predictedLookMax <= 13);
-    until(motion, [](const auto& s) { return s.mode == Mode::Working && s.pose.direction < 2 && s.pose.index > 0; });
-    assert(motion.state().pose.direction == predictedLookDir);
-    // During look-away, peekUpcoming includes returning to track 9.
-    const size_t nLook = motion.peekUpcoming(upcoming, 48);
-    bool sawTrack9 = false;
-    for (size_t i = 0; i < nLook; ++i) {
-      if (upcoming[i].direction == 9 && upcoming[i].index == 1) {
-        sawTrack9 = true;
-        break;
-      }
-    }
-    assert(sawTrack9);
   }
 }
 
@@ -701,7 +623,7 @@ int main(int argc, char**) {
   springSurprise();
   effectRestoration();
   agentBadgeLayoutAndRestoration();
-  peekUpcomingTransitionsAndHolds();
+  forecastMatchesMotion();
   std::cout << "Character tests passed: idle parity; center-only handoffs; all modes/interruptions; "
                "sleep cycle; pause/stalls; allocation-free updates; dual-buffer effects/canaries/body preservation; agent badges\n";
 }

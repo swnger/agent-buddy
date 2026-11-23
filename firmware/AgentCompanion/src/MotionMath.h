@@ -1,5 +1,4 @@
 #pragma once
-#include <cmath>
 #include <cstdint>
 
 // Shared easing and random helpers for the motion engines.
@@ -18,25 +17,6 @@ inline double inverseQuintic(double value) {
   for (int i = 0; i < 30; ++i) {
     const double middle = (low + high) / 2;
     if (quintic(middle) < value) low = middle;
-    else high = middle;
-  }
-  return (low + high) / 2;
-}
-
-// Discrete-friendly soft ease (55% linear + 45% cosine): gently slows to ~2x at endpoints
-// without concentrating a ~320 ms dead pause onto frame 1 before landing on center frame 0.
-inline double softEase(double t) {
-  constexpr double kPi = 3.14159265358979323846;
-  return 0.55 * t + 0.45 * (0.5 - 0.5 * std::cos(kPi * t));
-}
-
-inline double inverseSoftEase(double value) {
-  if (value <= 0) return 0;
-  if (value >= 1) return 1;
-  double low = 0, high = 1;
-  for (int i = 0; i < 30; ++i) {
-    const double middle = (low + high) / 2;
-    if (softEase(middle) < value) low = middle;
     else high = middle;
   }
   return (low + high) / 2;

@@ -1293,43 +1293,30 @@ Install changed artwork with a full upload or `npm run character copilot`.
   without changing the motion formulas or allocating a lookup table.
 - Blinks advance independently while the head continues moving. The hardware
   seeds randomness from `esp_random()` at startup. No network is involved.
-- The exporter preserves the spatial bilinear filtering used by the earlier
-  device renderer. A 32 KiB internal-RAM DEFLATE history preserves filtered bytes
-  while a separate 824-byte row buffer reconstructs pixels and copies row spans
-  into the destination framebuffer. This avoids mutating inflater history or
-  making a second full-image pass through PSRAM. `SpriteRenderer` applies the
-  selected eye patch in display byte order. It never
-  blends different poses or uses the browser's optional crossfade.
-- Per-framebuffer render keys avoid decoding or copying unchanged poses. Each
-  output keeps only a small original-eye patch for reopening; there are no
-  full-size decoded or working sprites in SRAM and no third PSRAM frame cache.
-  Persistent workspaces avoid allocation in the animation loop. Core 0 finishes
-  each RGB565 frame and marks the 16×16 tiles affected by pose, blink, or overlay
-  changes. Core 1 groups the affected panel tiles into windows for DMA transfer.
-  Unchanged pixels stay on the panel. Presentation is paced independently of
-  rendering, with a target of 60 displayed frames per second.
-- On devices that cache decoded base poses, the preloader predicts the next
-  idle turn during the pause at center. It reserves cache space for the known
-  sequence first, then uses spare space for the faster sections of expression
-  tracks. A pose that finishes loading between presentations can appear on the
-  next frame if it lies between the visible and requested poses. The motion and
-  blink clocks keep advancing independently.
+- The exporter uses bilinear filtering. A 32 KiB DEFLATE dictionary holds the filtered bytes.
+  Separate row buffers reconstruct display-order RGB565 pixels for the framebuffer or pose cache.
+  The renderer composites the selected eye patch without blending neighboring head poses.
+- Each framebuffer saves its open eyes when a blink begins. Core 0 marks the 16×16 tiles changed
+  by the pose or overlays. Core 1 groups them into DMA windows, targeting 60 presentations per second.
+- The native-size renderer caches decoded rows in PSRAM pages. A copy of the motion engine predicts
+  up to two seconds of poses, including walk cycles. The decoder protects imminent poses and warms
+  expression entries during dwells. While a pose loads, the head can show a ready intermediate
+  pose and the blink and overlay clocks continue.
 
-On a Waveshare AMOLED 1.75 with Copilot, a before-and-after USB test exercised
-idle, working, attention, surprise, and complete for 15 seconds each at two
-display angles (about −30° and −42°), with an agent badge and usage text visible.
-Across the five-second reports, mean render time went from 5.08 to 4.95 ms and
-mean panel composition and transfer time went from 19.53 to 3.91 ms per frame.
-The two stages run on separate cores. Mean presentation rate rose from 48.2 to
-59.3 fps, and the longest measured presentation interval fell from 25.7 to 24.8 ms.
+An earlier USB test on the Waveshare AMOLED 1.75 exercised each of the five modes for
+15 seconds at both −30° and −42°, with a badge and usage text visible. Mean render time
+fell from 5.08 to 4.95 ms and mean panel composition and transfer from 19.53 to 3.91 ms.
+Presentation rose from 48.2 to 59.3 fps. The longest interval fell from 25.7 to 24.8 ms.
 
-A separate on-device test isolated pose preloading. The same Copilot pack ran a
-fixed-seed, 5,100-frame sequence through all five modes at −39.6°, with a badge
-and usage text visible. Before the preloading change, 364 frames showed a late
-base pose. The final run had 251. The longest stretch where the head stayed on
-one pose while another was due fell from 23 presentations to 5. Average cadence
-was 59.0 and 59.1 fps respectively. All 17 checkpoints matched the requested
-motion sequence, and both runs passed the device heap integrity check.
+The fixed-seed device replay uses the Copilot pack for 5,100 frames across all five modes.
+Its test firmware fixes the angle at −39.6° and supplies a solid badge and usage text.
+Before pose preloading, 364 presentations showed a late pose and the longest freeze lasted 23 frames.
+Two runs with the previous cache showed 236–251 late poses, a five-frame maximum freeze and
+32 jumps over an intermediate pose on the same track. The paged cache showed 223 late poses,
+a four-frame maximum freeze and 35 such jumps. Presentation rose from 59.06–59.07 to 59.33 fps.
+Intervals over 20 ms fell from 194–195 to 129 and the worst interval fell from 25.69–26.48 to
+24.15 ms. All 17 requested-motion checkpoints matched, and the device heap check passed.
+Rotation and badge artwork are checked separately on the normal firmware with real icon packets.
 
 The optimized eight-track idle baseline completed a five-minute device soak:
 all 59 reports were **30.0 fps**, the maximum presentation interval was

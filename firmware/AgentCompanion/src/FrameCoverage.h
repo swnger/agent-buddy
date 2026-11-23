@@ -26,8 +26,17 @@ struct FrameCoverage {
   bool shows(const SpritePose& other) const {
     return sameBase(other) && pose.blinkLevel == other.blinkLevel && pose.blinkBlend == other.blinkBlend;
   }
+  static uint32_t columns(int x, int width) {
+    return (uint32_t(1) << ((x + width + 15) / 16)) - (uint32_t(1) << (x / 16));
+  }
+  static void mark(Tiles& tiles, int x, int y, int width, int height) {
+    if (!width || !height) return;
+    const uint32_t bits = columns(x, width);
+    for (int row = y / 16; row < std::min<int>(tiles.size(), (y + height + 15) / 16); ++row)
+      tiles[row] |= bits;
+  }
   void setEyes(int x, int y, int width, int height) {
-    eyeColumns = (uint32_t(1) << ((x + width + 15) / 16)) - (uint32_t(1) << (x / 16));
+    eyeColumns = columns(x, width);
     eyeTop = y / 16;
     eyeEnd = (y + height + 15) / 16;
   }

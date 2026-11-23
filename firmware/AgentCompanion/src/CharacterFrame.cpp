@@ -22,10 +22,8 @@ bool CharacterSprite::fullFrame() {
 
 bool CharacterSprite::render(const CharacterState& state, uint16_t* frame) {
   if (fullFrame()) return fullFrame_->render(state.pose, state.effectSeconds, frame);
-  SpritePose pose = state.pose;
-  if (const CharacterPack* pack = characterPack())
-    pose.index = walkIndex(pack->header, pose.direction, pose.index, state.effectSeconds);
-  return patch_->render(pose, frame);
+  const auto* pack = characterPack();
+  return patch_->render(pack ? framePose(state, pack->header) : state.pose, frame);
 }
 
 void CharacterSprite::invalidate() {

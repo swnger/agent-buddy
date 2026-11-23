@@ -13,10 +13,6 @@ struct ScreenPixels {
   const uint16_t* pixels;
   int x, y, width, height;
   Rgb565Order order;
-  // Optional 16x16 occupancy bitmap in source-local coordinates (1 bit per 16px tile column,
-  // up to 32 columns = 512px wide). Tiles with all zero bits are guaranteed black.
-  const uint32_t* tileMask = nullptr;
-  int tileRows = 0;
 };
 
 // Display scanout and touch use the same inverse, pixel-centered transform.
@@ -293,49 +289,6 @@ class ScreenTransform {
       if (minFirst >= maxLast) continue;
       for (int column = minFirst & ~(kTileColumns - 1); column < maxLast; column += kTileColumns) {
         const int tileEnd = std::min(column + kTileColumns, maxLast);
-        if constexpr (!Box) {
-          if (source.tileMask && source.tileRows > 0 && width <= 512) {
-            int minSx = width, maxSx = -1, minSy = height, maxSy = -1;
-            for (int y = 0; y < tileRows; ++y) {
-              const int begin = std::max(column, first[y]);
-              const int end = std::min(tileEnd, last[y]);
-              if (begin >= end) continue;
-              const int span = end - 1 - begin;
-              const int x0 = rowX[y] >> 16;
-              const int x1 = (rowX[y] + span * cosine_) >> 16;
-              const int y0 = rowY[y] >> 16;
-              const int y1 = (rowY[y] - span * sine_) >> 16;
-              minSx = std::min(minSx, std::min(x0, x1));
-              maxSx = std::max(maxSx, std::max(x0, x1));
-              minSy = std::min(minSy, std::min(y0, y1));
-              maxSy = std::max(maxSy, std::max(y0, y1));
-            }
-            if (minSx <= maxSx && minSy <= maxSy) {
-              const int tx0 = std::clamp(minSx >> 4, 0, 31);
-              const int tx1 = std::clamp(maxSx >> 4, 0, 31);
-              const int ty0 = std::clamp(minSy >> 4, 0, source.tileRows - 1);
-              const int ty1 = std::clamp(maxSy >> 4, 0, source.tileRows - 1);
-              const uint32_t colMask = (tx1 - tx0 >= 31)
-                  ? ~uint32_t(0)
-                  : (((uint32_t(2) << (tx1 - tx0)) - 1u) << tx0);
-              uint32_t occupied = 0;
-              for (int ty = ty0; ty <= ty1; ++ty) occupied |= source.tileMask[ty];
-              if ((occupied & colMask) == 0u) {
-                for (int y = 0; y < tileRows; ++y) {
-                  const int begin = std::max(column, first[y]);
-                  const int end = std::min(tileEnd, last[y]);
-                  if (begin >= end) continue;
-                  const int count = end - begin;
-                  std::memset(output + (row + y - firstRow) * columns + begin, 0,
-                              static_cast<size_t>(count) * sizeof(uint16_t));
-                  rowX[y] += count * cosine_;
-                  rowY[y] -= count * sine_;
-                }
-                continue;
-              }
-            }
-          }
-        }
         for (int y = 0; y < tileRows; ++y) {
           const int begin = std::max(column, first[y]);
           const int end = std::min(tileEnd, last[y]);

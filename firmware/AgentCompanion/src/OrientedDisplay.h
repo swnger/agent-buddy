@@ -14,10 +14,8 @@ class OrientedDisplay : public Arduino_Canvas {
                   void (*setBrightness)(uint8_t));
   bool begin(int32_t speed = GFX_NOT_DEFINED) override;
   void flush(bool forceFlush = false) override;
-  bool flushFrame(const uint16_t* pixels, int x, int y, int width, int height,
-                  const uint32_t* tileMask = nullptr, int tileRows = 0);
-  bool flushAnimation(const uint16_t* pixels, const FrameCoverage& coverage,
-                      const FrameCoverage::Tiles& changes);
+  bool flushFrame(const uint16_t* pixels, int x, int y, int width, int height);
+  bool flushAnimation(const uint16_t* pixels, const FrameCoverage::Tiles& changes);
   bool setAngle(float radians);
   bool setTrim(float radians);
   float angle() const { return ScreenOrientation::shortestAngle(orientation_.angle() + trim_); }
@@ -30,7 +28,7 @@ class OrientedDisplay : public Arduino_Canvas {
  private:
   bool flushSource(const ScreenPixels& source);
   bool writeWindow(const ScreenPixels& source, const ScreenTransform& transform,
-                   int x, int y, int width, int height);
+                   int x, int y, int width, int height, const uint16_t* direct = nullptr);
   static constexpr int kTileColumns = (kPanelWidth + 15) / 16;
   static constexpr int kTileRows = (kPanelHeight + 15) / 16;
   static_assert(kTileColumns < 32 && (kCharacterFrameWidth + 15) / 16 < 32);
