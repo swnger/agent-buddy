@@ -167,6 +167,31 @@ bool CharacterEffects::restore(uint16_t* frame) {
   return true;
 }
 
+void CharacterEffects::markTiles(const uint16_t* frame, uint32_t* tileMask, int tileRows) const {
+  if (!frame || !tileMask || tileRows <= 0) return;
+  const int index = frame == outputs_[0] ? 0 : frame == outputs_[1] ? 1 : -1;
+  if (index < 0) return;
+  const size_t count = counts_[index];
+  const uint32_t* damage = damage_[index];
+  for (size_t i = 0; i < count; ++i) {
+    const uint32_t pos = damage[i];
+    const int y = static_cast<int>(pos / kCharacterFrameWidth);
+    const int x = static_cast<int>(pos - static_cast<uint32_t>(y) * kCharacterFrameWidth);
+    const int ty = y >> 4;
+    if (ty < tileRows) tileMask[ty] |= uint32_t(1) << (x >> 4);
+  }
+  for (int r = 0; r < regionCounts_[index]; ++r) {
+    const OverlayRegion& area = regions_[index][r];
+    if (area.width == 0 || area.height == 0) continue;
+    const int tx0 = std::max(0, static_cast<int>(area.x) >> 4);
+    const int tx1 = std::min(31, (static_cast<int>(area.x) + area.width - 1) >> 4);
+    const int ty0 = std::max(0, static_cast<int>(area.y) >> 4);
+    const int ty1 = std::min(tileRows - 1, (static_cast<int>(area.y) + area.height - 1) >> 4);
+    const uint32_t bits = ((uint32_t(2) << (tx1 - tx0)) - 1u) << tx0;
+    for (int ty = ty0; ty <= ty1; ++ty) tileMask[ty] |= bits;
+  }
+}
+
 void CharacterEffects::pixel(int x, int y, uint16_t rgb) {
   x += kCharacterArtX;
   y += kFrameY;

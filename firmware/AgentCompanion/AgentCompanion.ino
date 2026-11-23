@@ -64,7 +64,16 @@ AgentBadges agentBadges;
 tinfl_decompressor inflater;
 alignas(4) uint8_t inflateHistory[TINFL_LZ_DICT_SIZE];
 SpritePredictor spritePredictor;
+struct PatchInflateContext {
+  tinfl_decompressor inflater;
+  SpritePredictor predictor;
+  uint8_t* buffer = nullptr;
+  size_t bufferBytes = 0;
+};
+PatchInflateContext* patchInflateCtx = nullptr;
 uint32_t inflateTimeUs = 0, predictTimeUs = 0;
+uint32_t prefetchCommits = 0, prefetchAborts = 0, coldHeldFrames = 0;
+std::atomic<int64_t> nextFreeFrameUs{0};
 constexpr size_t kTransferBytes = 16 * 1024;
 static_assert(kCharacterUploadChunkBytes <= kTransferBytes,
               "Character upload chunks are staged in the display transfer buffer.");
@@ -121,12 +130,17 @@ bool updateOrientation() {
   return true;
 }
 
+constexpr int kFrameTileRows = (kCharacterFrameHeight + 15) / 16;
+
 struct Frame {
   uint16_t* pixels = nullptr;
   int64_t presentedUs = 0;
   uint32_t renderUs = 0, motionUs = 0, decodeUs = 0, compositeUs = 0, eyesUs = 0, effectsUs = 0,
       inflateUs = 0, predictUs = 0, scaleUs = 0;
+  uint32_t tileMask[kFrameTileRows]{};
+  bool hasTileMask = false;
   CharacterState state;
+  SpritePose renderedPose;
 };
 Frame frames[2];
 
@@ -162,8 +176,144 @@ void* allocate(size_t bytes, uint32_t capabilities, const char* error) {
   return result;
 }
 
+// Incremental resumable background pose prefetch state (owned exclusively by the render task).
+constexpr size_t kPrefetchInputBytes = 2048;
+struct PrefetchState {
+  bool active = false;
+  uint8_t direction = 0;
+  uint8_t index = 0;
+  SpriteRenderer::PrefetchTarget target{};
+  const uint8_t* input = nullptr;
+  size_t inputSize = 0;
+  size_t consumed = 0;
+  size_t dictPos = 0;
+  size_t writtenPixels = 0;
+  bool hasCarry = false;
+  uint8_t carryByte = 0;
+  bool overflow = false;
+} prefetch;
+
+void onPrefetchRow(void* opaque, size_t y, const uint16_t* swappedRow, int begin, int end) {
+  auto* p = static_cast<PrefetchState*>(opaque);
+  if (p->overflow) return;
+  if (begin >= end) begin = end = 0;
+  const size_t count = static_cast<size_t>(end - begin);
+  if (p->writtenPixels + count > p->target.poolCapacity) {
+    p->overflow = true;
+    return;
+  }
+  if (count && p->target.poolOffset + p->writtenPixels + count > p->target.nextEvictOffset) {
+    if (!patchRenderer->evictPoolRange(p->target.poolOffset,
+                                       p->target.poolOffset + p->writtenPixels + count,
+                                       p->target.nextEvictOffset, false)) {
+      p->overflow = true;
+      return;
+    }
+  }
+  p->target.slotSpans[y] = {static_cast<int16_t>(begin), static_cast<int16_t>(end)};
+  if (count) {
+    std::memcpy(p->target.poolDst + p->writtenPixels, swappedRow + begin, count * sizeof(uint16_t));
+    p->writtenPixels += count;
+  }
+}
+
+void abortPrefetch() {
+  if (!prefetch.active) return;
+  if (patchRenderer) patchRenderer->cancelPrefetch(prefetch.target);
+  prefetch.active = false;
+  ++prefetchAborts;
+}
+
+bool startPrefetch(uint8_t direction, uint8_t index) {
+  if (prefetch.active || !patchRenderer || characterScaler) return false;
+  SpriteRenderer::PrefetchTarget target;
+  if (!patchRenderer->preparePrefetch(direction, index, target)) return false;
+  const uint8_t* src = spriteBlock(target.block);
+  if (!src || !spritePredictor.resetRows(target.baseWidth, target.baseHeight, onPrefetchRow, &prefetch)) {
+    patchRenderer->cancelPrefetch(target);
+    return false;
+  }
+  tinfl_init(&inflater);
+  prefetch.active = true;
+  prefetch.direction = direction;
+  prefetch.index = index;
+  prefetch.target = target;
+  prefetch.input = src;
+  prefetch.inputSize = target.block.size;
+  prefetch.consumed = 0;
+  prefetch.dictPos = 0;
+  prefetch.writtenPixels = 0;
+  prefetch.hasCarry = false;
+  prefetch.carryByte = 0;
+  prefetch.overflow = false;
+  return true;
+}
+
+bool feedPrefetchBytes(const uint8_t* data, size_t bytes) {
+  if (!bytes) return true;
+  if (prefetch.hasCarry) {
+    const uint8_t pair[2] = {prefetch.carryByte, data[0]};
+    prefetch.hasCarry = false;
+    if (!spritePredictor.consume(pair, 2)) return false;
+    ++data;
+    --bytes;
+  }
+  const size_t evenBytes = bytes & ~size_t(1);
+  if (evenBytes && !spritePredictor.consume(data, evenBytes)) return false;
+  if (bytes & 1u) {
+    prefetch.carryByte = data[evenBytes];
+    prefetch.hasCarry = true;
+  }
+  return true;
+}
+
+// Advances the active prefetch by one input-sliced tinfl step (~1.2-1.7 ms).
+// Returns true if still in progress. Sets `committed` when the pose completes and commits.
+bool stepPrefetchChunk(bool* committed = nullptr) {
+  if (committed) *committed = false;
+  if (!prefetch.active) return false;
+  const size_t remainingIn = prefetch.inputSize - prefetch.consumed;
+  size_t inBytes = std::min(kPrefetchInputBytes, remainingIn);
+  const uint32_t flags = TINFL_FLAG_PARSE_ZLIB_HEADER
+      | (prefetch.consumed + inBytes < prefetch.inputSize ? TINFL_FLAG_HAS_MORE_INPUT : 0);
+  // Wrapping mode requires (pOut_buf_next - pOut_buf_start) + outBytes to equal the 32 KB dictionary.
+  size_t outBytes = sizeof(inflateHistory) - prefetch.dictPos;
+  const auto status = tinfl_decompress(&inflater, prefetch.input + prefetch.consumed, &inBytes,
+      inflateHistory, inflateHistory + prefetch.dictPos, &outBytes, flags);
+  prefetch.consumed += inBytes;
+  if (status < TINFL_STATUS_DONE) {
+    abortPrefetch();
+    return false;
+  }
+  if (outBytes) {
+    if (!feedPrefetchBytes(inflateHistory + prefetch.dictPos, outBytes) || prefetch.overflow) {
+      abortPrefetch();
+      return false;
+    }
+    prefetch.dictPos = (prefetch.dictPos + outBytes) & (sizeof(inflateHistory) - 1);
+  }
+  if (status == TINFL_STATUS_DONE) {
+    if (!prefetch.hasCarry && prefetch.consumed == prefetch.inputSize && spritePredictor.complete()) {
+      patchRenderer->commitPrefetch(prefetch.target, prefetch.writtenPixels);
+      prefetch.active = false;
+      ++prefetchCommits;
+      if (committed) *committed = true;
+    } else {
+      abortPrefetch();
+    }
+    return false;
+  }
+  if ((status != TINFL_STATUS_NEEDS_MORE_INPUT && status != TINFL_STATUS_HAS_MORE_OUTPUT)
+      || (inBytes == 0 && outBytes == 0)) {
+    abortPrefetch();
+    return false;
+  }
+  return true;
+}
+
 // Inflates a block through spritePredictor, which the caller has reset for its output.
 bool inflateBlock(const uint8_t* input, size_t inputSize) {
+  abortPrefetch();
   tinfl_init(&inflater);
   size_t consumed = 0;
   for (;;) {
@@ -173,16 +323,41 @@ bool inflateBlock(const uint8_t* input, size_t inputSize) {
     const auto status = tinfl_decompress(&inflater, input + consumed, &inBytes,
         inflateHistory, inflateHistory, &outBytes, TINFL_FLAG_PARSE_ZLIB_HEADER);
     const int64_t inflated = esp_timer_get_time();
-    inflateTimeUs += inflated - started;
+    inflateTimeUs += static_cast<uint32_t>(inflated - started);
     consumed += inBytes;
     if (status < TINFL_STATUS_DONE || !spritePredictor.consume(inflateHistory, outBytes)) return false;
-    predictTimeUs += esp_timer_get_time() - inflated;
+    predictTimeUs += static_cast<uint32_t>(esp_timer_get_time() - inflated);
     if (status == TINFL_STATUS_DONE) return consumed == inputSize && spritePredictor.complete();
     if (status != TINFL_STATUS_HAS_MORE_OUTPUT || outBytes != sizeof(inflateHistory)) return false;
   }
 }
 
+bool inflateBaseRows(const uint8_t* input, size_t inputSize, size_t width, size_t height,
+                     SpriteRenderer::RowCallback onRow, void* ctx) {
+  return spritePredictor.resetRows(width, height, onRow, ctx) && inflateBlock(input, inputSize);
+}
+
 bool inflatePose(uint8_t* output, size_t outputSize, const uint8_t* input, size_t inputSize, size_t width, size_t stride) {
+  // Decode blink patches with a dedicated non-wrapping inflater so blinking never aborts
+  // an in-flight background base-pose prefetch.
+  if (patchInflateCtx && !characterArt && outputSize <= patchInflateCtx->bufferBytes) {
+    if (!patchInflateCtx->predictor.reset(output, outputSize, width, stride)) return false;
+    tinfl_init(&patchInflateCtx->inflater);
+    size_t inBytes = inputSize;
+    size_t outBytes = patchInflateCtx->bufferBytes;
+    const int64_t started = esp_timer_get_time();
+    const auto status = tinfl_decompress(
+        &patchInflateCtx->inflater, input, &inBytes,
+        patchInflateCtx->buffer, patchInflateCtx->buffer, &outBytes,
+        TINFL_FLAG_PARSE_ZLIB_HEADER | TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF);
+    const int64_t inflated = esp_timer_get_time();
+    inflateTimeUs += static_cast<uint32_t>(inflated - started);
+    if (status != TINFL_STATUS_DONE || inBytes != inputSize || outBytes != outputSize) return false;
+    const bool ok = patchInflateCtx->predictor.consume(patchInflateCtx->buffer, outBytes)
+        && patchInflateCtx->predictor.complete();
+    predictTimeUs += static_cast<uint32_t>(esp_timer_get_time() - inflated);
+    return ok;
+  }
   // The art of a character drawn bigger keeps the pixels that a new image doesn't change, and the
   // scaler hears which ones did, so it scales only those again.
   const auto* art = reinterpret_cast<const uint8_t*>(characterArt);
@@ -201,15 +376,38 @@ bool inflatePose(uint8_t* output, size_t outputSize, const uint8_t* input, size_
   return true;
 }
 
+bool prefetchHelpsTarget(const PackHeader& pack, const SpritePose& lastBase,
+                         uint8_t desiredDir, uint8_t desiredIdx) {
+  if (!prefetch.active) return false;
+  SpriteBlock needed{};
+  if (patchRenderer->poseBaseBlock(desiredDir, desiredIdx, needed)
+      && needed.offset == prefetch.target.block.offset
+      && needed.size == prefetch.target.block.size) {
+    return true;
+  }
+  if (prefetch.direction != desiredDir) return false;
+  if (desiredDir == pack.walkDirection) return true;
+  if (lastBase.direction == desiredDir) {
+    if (desiredIdx >= lastBase.index)
+      return prefetch.index > lastBase.index && prefetch.index <= desiredIdx;
+    return prefetch.index < lastBase.index && prefetch.index >= desiredIdx;
+  }
+  return prefetch.index <= desiredIdx;
+}
+
 void animate(void*) {
   CharacterMotion motion(esp_random());
   if (motion.error()) fatal(motion.error());
+  motion.setSoftEase(true);
   CharacterSprite sprite(patchRenderer, fullFrameRenderer);
   const bool fullFrame = sprite.fullFrame();
   // A copy: an install unmaps the pack while this task may still step.
   const PackHeader pack = characterPack()->header;
   int64_t previous = esp_timer_get_time();
-  int64_t effectsReserveUs = 4000;
+  int64_t effectsReserveUs = 2000;
+  int64_t compositeReserveUs = 5000;
+  SpritePose lastRenderedBase{0, 0, 0, 0};
+  if (patchRenderer && !characterScaler && !fullFrame) patchRenderer->pinPose(0, 0);
   for (;;) {
     Frame* frame;
     xQueueReceive(freeFrames, &frame, portMAX_DELAY);
@@ -243,7 +441,82 @@ void animate(void*) {
     CharacterState drawn = frame->state;
     if (!upToDate) drawn = artState;
     artInflated = false;
-    const bool rendered = sprite.render(drawn, characterTarget(*frame));
+    bool rendered = false;
+    uint8_t postDesiredDir = drawn.pose.direction;
+    uint8_t postDesiredIdx = drawn.pose.index;
+    if (patchRenderer && !characterScaler && !fullFrame) {
+      const uint8_t desiredDir = drawn.pose.direction;
+      const uint8_t desiredIdx = walkIndex(pack, desiredDir, drawn.pose.index, drawn.effectSeconds);
+      postDesiredDir = desiredDir;
+      postDesiredIdx = desiredIdx;
+      auto isWarm = [&](uint8_t d, uint8_t i) {
+        return patchRenderer->hasBaseForFrame(d, i, frame->pixels)
+            || patchRenderer->hasCachedPose(d, i);
+      };
+      SpritePose renderPose = {desiredDir, desiredIdx, drawn.pose.blinkLevel, drawn.pose.blinkBlend};
+      if (isWarm(desiredDir, desiredIdx)) {
+        rendered = patchRenderer->render(renderPose, frame->pixels);
+        if (rendered) {
+          lastRenderedBase = {desiredDir, desiredIdx, 0, 0};
+          patchRenderer->pinPose(desiredDir, desiredIdx);
+        }
+      } else {
+        // Never block for a full ~30 ms cold inflate inside one frame: make budgeted incremental
+        // progress toward the target pose while displaying the last warm base pose so effects,
+        // blinking, and scanout pacing stay smooth.
+        if (!prefetchHelpsTarget(pack, lastRenderedBase, desiredDir, desiredIdx)) {
+          abortPrefetch();
+          startPrefetch(desiredDir, desiredIdx);
+        }
+        const int64_t preBudgetUs = std::clamp<int64_t>(
+            11500 - effectsReserveUs - compositeReserveUs, 2000, 6500);
+        const int64_t preBudgetEnd = start + preBudgetUs;
+        bool committedThisFrame = false;
+        uint8_t committedDir = 0, committedIdx = 0;
+        while (prefetch.active && esp_timer_get_time() < preBudgetEnd) {
+          const uint8_t pDir = prefetch.direction, pIdx = prefetch.index;
+          bool committed = false;
+          stepPrefetchChunk(&committed);
+          if (committed) {
+            committedThisFrame = true;
+            committedDir = pDir;
+            committedIdx = pIdx;
+          }
+        }
+        if (isWarm(desiredDir, desiredIdx)) {
+          rendered = patchRenderer->render(renderPose, frame->pixels);
+          if (rendered) {
+            lastRenderedBase = {desiredDir, desiredIdx, 0, 0};
+            patchRenderer->pinPose(desiredDir, desiredIdx);
+          }
+        } else if (committedThisFrame && committedDir == desiredDir && isWarm(committedDir, committedIdx)) {
+          renderPose.direction = committedDir;
+          renderPose.index = committedIdx;
+          rendered = patchRenderer->render(renderPose, frame->pixels);
+          if (rendered) {
+            lastRenderedBase = {committedDir, committedIdx, 0, 0};
+            patchRenderer->pinPose(committedDir, committedIdx);
+          }
+          ++coldHeldFrames;
+        } else if (isWarm(lastRenderedBase.direction, lastRenderedBase.index)) {
+          renderPose.direction = lastRenderedBase.direction;
+          renderPose.index = lastRenderedBase.index;
+          rendered = patchRenderer->render(renderPose, frame->pixels);
+          ++coldHeldFrames;
+        } else {
+          abortPrefetch();
+          rendered = patchRenderer->render(renderPose, frame->pixels);
+          if (rendered) {
+            lastRenderedBase = {desiredDir, desiredIdx, 0, 0};
+            patchRenderer->pinPose(desiredDir, desiredIdx);
+          }
+        }
+      }
+      frame->renderedPose = renderPose;
+    } else {
+      rendered = sprite.render(drawn, characterTarget(*frame));
+      frame->renderedPose = drawn.pose;
+    }
     artState = drawn;
     portENTER_CRITICAL(&renderLock);
     renderActive = false;
@@ -262,6 +535,17 @@ void animate(void*) {
     if (!effects->render(frame->state, frame->pixels)) fatal(effects->error());
     frame->effectsUs = restoreUs + esp_timer_get_time() - effectStart;
     effectsReserveUs = std::max<int64_t>(frame->effectsUs, effectsReserveUs * 15 / 16);
+    if (patchRenderer && !characterScaler && !fullFrame) {
+      if (patchRenderer->compositeUs > 0) {
+        compositeReserveUs = std::max<int64_t>(patchRenderer->compositeUs, compositeReserveUs * 15 / 16);
+      }
+      std::memset(frame->tileMask, 0, sizeof(frame->tileMask));
+      patchRenderer->fillTileMask(frame->pixels, frame->tileMask, kFrameTileRows);
+      effects->markTiles(frame->pixels, frame->tileMask, kFrameTileRows);
+      frame->hasTileMask = true;
+    } else {
+      frame->hasTileMask = false;
+    }
     frame->renderUs = esp_timer_get_time() - start;
     frame->decodeUs = fullFrame ? 0 : patchRenderer->decodeUs;
     frame->compositeUs = fullFrame ? 0 : patchRenderer->compositeUs;
@@ -269,6 +553,71 @@ void animate(void*) {
     frame->inflateUs = inflateTimeUs;
     frame->predictUs = predictTimeUs;
     xQueueSend(readyFrames, &frame, portMAX_DELAY);
+
+    // Use remaining Core 0 slack (after handing the rendered frame to Core 1) to incrementally
+    // pre-decode upcoming poses into the packed PSRAM cache while staying under Core 1's scanout.
+    if (patchRenderer && !characterScaler && !fullFrame
+        && uxQueueMessagesWaiting(freeFrames) == 0
+        && uxQueueMessagesWaiting(commands) == 0) {
+      const int64_t freeAt = nextFreeFrameUs.load(std::memory_order_relaxed);
+      const int64_t budgetEnd = (freeAt > start)
+          ? std::min(freeAt - 2000, start + 24000)
+          : (start + 14500);
+      while (esp_timer_get_time() < budgetEnd
+             && uxQueueMessagesWaiting(freeFrames) == 0
+             && uxQueueMessagesWaiting(commands) == 0) {
+        portENTER_CRITICAL(&renderLock);
+        const bool stop = renderPaused;
+        renderActive = !stop;
+        portEXIT_CRITICAL(&renderLock);
+        if (stop) vTaskSuspend(nullptr);
+        bool didWork = false;
+        if (!prefetch.active) {
+          // If this frame held an older pose while an intermediate pose finished, decode the
+          // current desired pose next before looking further ahead.
+          if (!patchRenderer->hasCachedPose(postDesiredDir, postDesiredIdx)) {
+            startPrefetch(postDesiredDir, postDesiredIdx);
+          }
+        }
+        if (!prefetch.active) {
+          SpritePose upcoming[24];
+          const size_t count = motion.peekUpcoming(upcoming, 24);
+          // For walk-cycle packs, expand walkDirection entries to their cyclic frames.
+          auto resolveDirIdx = [&](const SpritePose& p, uint8_t& d, uint8_t& idx) {
+            d = p.direction;
+            idx = p.index;
+            if (d == pack.walkDirection && pack.walkFrames > 0) {
+              idx = static_cast<uint8_t>(pack.walkFirst + (idx % pack.walkFrames));
+            }
+          };
+          for (size_t i = 0; i < count; ++i) {
+            uint8_t d = 0, idx = 0;
+            resolveDirIdx(upcoming[i], d, idx);
+            if (patchRenderer->hasCachedPose(d, idx)) continue;
+            // Skip speculative prefetch if reserving it would evict an earlier upcoming pose.
+            bool evictsEarlier = false;
+            for (size_t j = 0; j < i; ++j) {
+              uint8_t ed = 0, eidx = 0;
+              resolveDirIdx(upcoming[j], ed, eidx);
+              if (patchRenderer->wouldEvictPose(ed, eidx)) {
+                evictsEarlier = true;
+                break;
+              }
+            }
+            if (evictsEarlier) break;
+            if (startPrefetch(d, idx)) break;
+          }
+        }
+        if (prefetch.active) {
+          stepPrefetchChunk();
+          didWork = true;
+        }
+        portENTER_CRITICAL(&renderLock);
+        renderActive = false;
+        portEXIT_CRITICAL(&renderLock);
+        if (!didWork) break;
+      }
+    }
   }
 }
 
@@ -308,8 +657,8 @@ bool captureFrame(const Frame& frame) {
       "CAPTURE_STATE mode=%u requested=%u seconds=%.9g event=%u\n"
       "CAPTURE_CHARACTER %s\n"
       "FRAME_BE %d %d %u\n",
-      static_cast<unsigned>(frame.state.pose.direction), static_cast<unsigned>(frame.state.pose.index),
-      static_cast<unsigned>(frame.state.pose.blinkLevel), static_cast<unsigned>(frame.state.mode),
+      static_cast<unsigned>(frame.renderedPose.direction), static_cast<unsigned>(frame.renderedPose.index),
+      static_cast<unsigned>(frame.renderedPose.blinkLevel), static_cast<unsigned>(frame.state.mode),
       static_cast<unsigned>(frame.state.requestedMode), frame.state.effectSeconds, frame.state.eventId,
       characterPack() ? characterPack()->header.id : "none",
       kCharacterFrameWidth, kCharacterFrameHeight, static_cast<unsigned>(bytes));
@@ -1333,6 +1682,49 @@ void startCharacter() {
       CharacterEffects::kOverlayScratchPixels * sizeof(uint16_t), MALLOC_CAP_SPIRAM,
       "Badge overlay allocation failed."));
   effects = new (effectMemory) CharacterEffects(frames[0].pixels, frames[1].pixels, &agentBadges, badgeOverlay);
+  // Allocate a dedicated blink-patch inflater and an optional PSRAM packed-span base-pose ring
+  // cache after all required buffers, keeping >= 1 MB PSRAM free. Disabled with CharacterScaler.
+  if (patchRenderer && !characterScaler && pack.baseWidth > 0 && pack.baseHeight > 0) {
+    constexpr uint32_t kPsramCaps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    const size_t patchBufBytes = std::max<size_t>(1, pack.maxPatchPixels) * sizeof(uint16_t);
+    auto* ctxMem = heap_caps_malloc(sizeof(PatchInflateContext), kPsramCaps);
+    auto* patchBuf = static_cast<uint8_t*>(heap_caps_malloc(patchBufBytes, kPsramCaps));
+    if (ctxMem && patchBuf) {
+      patchInflateCtx = new (ctxMem) PatchInflateContext{};
+      patchInflateCtx->buffer = patchBuf;
+      patchInflateCtx->bufferBytes = patchBufBytes;
+    } else {
+      if (ctxMem) heap_caps_free(ctxMem);
+      if (patchBuf) heap_caps_free(patchBuf);
+    }
+    constexpr size_t kPsramReserveBytes = 1u * 1024u * 1024u;
+    constexpr size_t kCacheSlots = SpriteRenderer::kMaxBaseCacheSlots;
+    const size_t basePixels = static_cast<size_t>(pack.baseWidth) * pack.baseHeight;
+    const size_t baseBytes = basePixels * sizeof(uint16_t);
+    const size_t spansBytes = kCacheSlots * kSpriteHeight * sizeof(SpriteRenderer::RowSpan);
+    const size_t freePsram = heap_caps_get_free_size(kPsramCaps);
+    const size_t largestPsram = heap_caps_get_largest_free_block(kPsramCaps);
+    const size_t reserve = kPsramReserveBytes + spansBytes;
+    size_t poolBytes = freePsram > reserve ? std::min(freePsram - reserve, largestPsram) : 0;
+    poolBytes &= ~size_t(4095);
+    uint16_t* basePool = nullptr;
+    while (poolBytes >= 2 * baseBytes && !basePool) {
+      basePool = static_cast<uint16_t*>(heap_caps_malloc(poolBytes, kPsramCaps));
+      if (!basePool) poolBytes = (poolBytes * 3 / 4) & ~size_t(4095);
+    }
+    if (basePool) {
+      auto* rowSpans = static_cast<SpriteRenderer::RowSpan*>(heap_caps_malloc(spansBytes, kPsramCaps));
+      if (rowSpans) {
+        patchRenderer->setBaseCache(basePool, poolBytes / sizeof(uint16_t), rowSpans, kCacheSlots,
+                                    nullptr, 0, inflateBaseRows);
+        logMessage("BASE_CACHE slots=%u pool_bytes=%u free_psram=%u\n",
+                   static_cast<unsigned>(kCacheSlots), static_cast<unsigned>(poolBytes),
+                   static_cast<unsigned>(ESP.getFreePsram()));
+      } else {
+        heap_caps_free(basePool);
+      }
+    }
+  }
   // Warm both frame caches before starting the presentation clock and brightness fade.
   CharacterSprite sprite(patchRenderer, fullFrameRenderer);
   for (auto& frame : frames) {
@@ -1465,6 +1857,7 @@ void loop() {
   static uint32_t previousEvent = UINT32_MAX;
   static CharacterMode previousMode = CharacterMode::Idle;
   static uint32_t networkRevision = UINT32_MAX;
+  static int64_t avgTransferUs = 16667;
   if (restartAt) {
     network.update();
     if (elapsed(millis(), restartAt)) ESP.restart();
@@ -1499,15 +1892,22 @@ void loop() {
   previousPresentation = start;
   uint32_t transferUs = 0;
   if (!settings.isOpen() && !prompt) {
+    nextFreeFrameUs.store(start + avgTransferUs, std::memory_order_relaxed);
     if (!display.flushFrame(
-            frame->pixels, kCharacterFrameX, 0, kCharacterFrameWidth, kCharacterFrameHeight))
+            frame->pixels, kCharacterFrameX, 0, kCharacterFrameWidth, kCharacterFrameHeight,
+            frame->hasTileMask ? frame->tileMask : nullptr, frame->hasTileMask ? kFrameTileRows : 0))
       fatal(display.error());
-  } else if (orientationChanged) {
-    flushDisplay();
+    transferUs = esp_timer_get_time() - start;
+    avgTransferUs = (avgTransferUs * 7 + static_cast<int64_t>(transferUs)) / 8;
+  } else {
+    nextFreeFrameUs.store(0, std::memory_order_relaxed);
+    if (orientationChanged) flushDisplay();
+    transferUs = esp_timer_get_time() - start;
   }
-  transferUs = esp_timer_get_time() - start;
-  if (fadeFrame <= 40) {
-    display.setBrightness(static_cast<uint8_t>(settings.brightness() * smoother(fadeFrame / 40.0f)));
+  constexpr uint32_t kFadeFrames = kTargetFps * 4 / 3;
+  if (fadeFrame <= kFadeFrames) {
+    display.setBrightness(static_cast<uint8_t>(
+        settings.brightness() * smoother(fadeFrame / static_cast<float>(kFadeFrames))));
     ++fadeFrame;
   }
   TouchGesture gesture;
@@ -1547,9 +1947,12 @@ void loop() {
                     orientationSensor.accelerometerZ());
       logMessage("SCANOUT compose=%uus spi_wait=%uus\n", display.composeUs(), display.writeUs());
       logMessage("STAGES motion=%uus decode=%uus composite=%uus eyes=%uus effects=%uus inflate=%uus predict=%uus "
-                    "scale=%uus\n",
+                    "scale=%uus cache_hits=%u cache_misses=%u prefetch_ok=%u prefetch_abort=%u cold_held=%u\n",
                     timing.motionUs, timing.decodeUs, timing.compositeUs, timing.eyesUs, timing.effectsUs,
-                    timing.inflateUs, timing.predictUs, timing.scaleUs);
+                    timing.inflateUs, timing.predictUs, timing.scaleUs,
+                    patchRenderer ? patchRenderer->cacheHits : 0u,
+                    patchRenderer ? patchRenderer->cacheMisses : 0u,
+                    prefetchCommits, prefetchAborts, coldHeldFrames);
       logMessage("PACING min_gap_us=%u max_gap_us=%u\n",
                     minGap == UINT32_MAX ? 0 : minGap, maxGap);
       constexpr uint32_t internalCaps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
@@ -1561,8 +1964,8 @@ void loop() {
                     static_cast<unsigned>(heap_caps_get_largest_free_block(internalCaps)), ESP.getFreePsram(),
                     static_cast<unsigned>(uxTaskGetStackHighWaterMark(renderTask)),
                     static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
-      logMessage("POSE direction=%u frame=%u blink=%u\n", static_cast<unsigned>(timing.state.pose.direction),
-                    static_cast<unsigned>(timing.state.pose.index), static_cast<unsigned>(timing.state.pose.blinkLevel));
+      logMessage("POSE direction=%u frame=%u blink=%u\n", static_cast<unsigned>(timing.renderedPose.direction),
+                    static_cast<unsigned>(timing.renderedPose.index), static_cast<unsigned>(timing.renderedPose.blinkLevel));
     }
     frameCount = maxRender = 0;
     minGap = UINT32_MAX;

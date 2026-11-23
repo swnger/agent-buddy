@@ -124,7 +124,7 @@ void placements() {
     assert(limited);
     std::cout << "  " << pack.name << ": scale " << placement.scale << ", offset " << placement.offsetY << '\n';
   }
-  if (kRoundPanel) {
+  if (kRoundPanel && kCharacterMaxScale > 1) {
     const CharacterPlacement santa = fitCharacter(80, 4, 277, 315);
     assert(std::fabs(santa.scale - 1.131) < .005 && std::abs(santa.offsetY - 11) <= 2);
     // A small character grows as much as the board allows, and stays where it is.

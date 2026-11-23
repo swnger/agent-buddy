@@ -25,8 +25,11 @@ class CharacterMotion {
   void surprise();
   bool requestIdleDirection(int direction);
   CharacterState state() const;
+  // Returns up to `maxCount` upcoming poses on the current active motion leg (read-only peek).
+  size_t peekUpcoming(SpritePose* out, size_t maxCount) const;
   const char* error() const { return error_; }
   void setPlaying(bool value) { playing_ = value; }
+  void setSoftEase(bool value) { softEase_ = value; idle_.setSoftEase(value); cachedIndex_ = -1; }
 
  private:
   enum class Phase { Out, Hold, Micro, Returning, WorkUnfocus, WorkLookOut, WorkLookHold, WorkLookBack,
@@ -59,6 +62,7 @@ class CharacterMotion {
   uint32_t eventId_ = 0;
   bool sleepExiting_ = false;
   bool playing_ = true;
+  bool softEase_ = false;
   const char* error_ = nullptr;
 };
 }

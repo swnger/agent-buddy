@@ -116,6 +116,83 @@ CharacterState CharacterMotion::state() const {
   return {pose, mode_, next_, static_cast<float>(effectSeconds_), eventId_};
 }
 
+size_t CharacterMotion::peekUpcoming(SpritePose* out, size_t maxCount) const {
+  if (!out || maxCount == 0 || available_ < 8) return 0;
+  size_t count = 0;
+  auto appendRange = [&](uint8_t dir, int firstIdx, int lastIdx) {
+    if (dir >= available_ || dir >= kSpriteDirections || count >= maxCount) return;
+    const int maxIdx = static_cast<int>(kSpriteTrackSteps[dir]) - 1;
+    if (firstIdx < 0 || firstIdx > maxIdx || lastIdx < 0 || lastIdx > maxIdx) return;
+    const int step = lastIdx >= firstIdx ? 1 : -1;
+    for (int idx = firstIdx; count < maxCount; idx += step) {
+      out[count++] = {dir, static_cast<uint8_t>(idx), 0, 0};
+      if (idx == lastIdx) break;
+    }
+  };
+  auto appendModeEntry = [&](CharacterMode targetMode) {
+    if (targetMode == CharacterMode::Idle || targetMode == CharacterMode::Sleep || available_ < 13)
+      return;
+    const uint8_t dir = static_cast<uint8_t>(7 + static_cast<uint8_t>(targetMode));
+    appendRange(dir, 1, static_cast<int>(kSpriteTrackSteps[dir]) - 1);
+  };
+
+  if (mode_ == CharacterMode::Idle || mode_ == CharacterMode::Sleep) {
+    const SpritePose cur = idle_.pose();
+    const auto phase = idle_.phase();
+    if (phase == SpriteMotion::Phase::Out) {
+      if (cur.index < idle_.target()) appendRange(cur.direction, cur.index + 1, idle_.target());
+    } else if (phase == SpriteMotion::Phase::Return || phase == SpriteMotion::Phase::Endpoint) {
+      if (cur.index > 1) appendRange(cur.direction, cur.index - 1, 1);
+    }
+    if (next_ != mode_) appendModeEntry(next_);
+    return count;
+  }
+
+  if (phase_ != Phase::Hold && phase_ != Phase::WorkLookHold && pose_.index != to_) {
+    const int step = to_ > from_ ? 1 : -1;
+    appendRange(pose_.direction, static_cast<int>(pose_.index) + step, to_);
+  }
+
+  if (phase_ == Phase::Returning) {
+    appendModeEntry(next_);
+  } else if (phase_ == Phase::SurpriseReaction) {
+    const CharacterMode after = (next_ == CharacterMode::Surprise && !repeatSurprise_) ? persistent_ : next_;
+    appendModeEntry(after);
+  } else if (next_ != mode_) {
+    if (pose_.index > 1 && (phase_ == Phase::Hold || phase_ == Phase::WorkLookHold))
+      appendRange(pose_.direction, static_cast<int>(pose_.index) - 1, 1);
+    appendModeEntry(next_);
+  } else if (mode_ == CharacterMode::Attention) {
+    if (phase_ == Phase::Hold && pose_.index > 1)
+      appendRange(pose_.direction, static_cast<int>(pose_.index) - 1, 1);
+    if (phase_ == Phase::Hold || phase_ == Phase::AttentionBack) {
+      const uint8_t altDir = pose_.direction == 11 ? 12 : 11;
+      appendRange(altDir, 1, static_cast<int>(kSpriteTrackSteps[altDir]) - 1);
+    }
+  } else if (mode_ == CharacterMode::Working) {
+    if (pose_.direction == 9
+        && (phase_ == Phase::Hold || phase_ == Phase::Micro || phase_ == Phase::WorkUnfocus)) {
+      if (phase_ != Phase::WorkUnfocus && pose_.index > 1)
+        appendRange(9, static_cast<int>(pose_.index) - 1, 1);
+      uint32_t rng = random_;
+      auto peekRange = [&rng](double low, double high) {
+        return low + double(xorshift32(rng)) / 4294967296.0 * (high - low);
+      };
+      const uint8_t lookDir = static_cast<uint8_t>(peekRange(0, 2));
+      const uint8_t lookTarget = static_cast<uint8_t>(peekRange(8, 14));
+      appendRange(lookDir, 1, lookTarget);
+    } else if (phase_ == Phase::WorkLookOut || phase_ == Phase::WorkLookHold
+               || phase_ == Phase::WorkLookBack) {
+      if (phase_ == Phase::WorkLookOut && to_ > 1)
+        appendRange(pose_.direction, static_cast<int>(to_) - 1, 1);
+      else if (phase_ == Phase::WorkLookHold && pose_.index > 1)
+        appendRange(pose_.direction, static_cast<int>(pose_.index) - 1, 1);
+      appendRange(9, 1, static_cast<int>(kSpriteTrackSteps[9]) - 1);
+    }
+  }
+  return count;
+}
+
 void CharacterMotion::beginLeg(uint8_t to, double duration, Phase phase) {
   from_ = pose_.index;
   to_ = to;
@@ -168,8 +245,10 @@ double CharacterMotion::edgeInterval() {
   const int steps = std::abs(int(to_) - from_);
   const int travelled = std::abs(int(pose_.index) - from_);
   // Physics is baked into equally spaced spring samples, not a second easing curve.
-  cachedInterval_ = phase_ == Phase::SurpriseReaction ? duration_ / steps
+  double interval = phase_ == Phase::SurpriseReaction ? duration_ / steps
       : duration_ * (inverseQuintic(double(travelled + 1) / steps) - inverseQuintic(double(travelled) / steps));
+  if (softEase_ && phase_ != Phase::SurpriseReaction) interval = std::min(interval, 0.115);
+  cachedInterval_ = interval;
   cachedIndex_ = pose_.index;
   return cachedInterval_;
 }

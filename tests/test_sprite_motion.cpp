@@ -131,6 +131,26 @@ static void tracksAndTiming() {
       }
     }
   }
+  // Soft easing keeps quintic's snappy mid-turn speed while capping the final return step <= 115 ms.
+  {
+    auto p = manual();
+    p.setSoftEase(true);
+    assert(p.request(4));
+    const double refresh = 1.0 / 60;
+    until(p, [](const auto& q) { return q.phase() == Phase::Return; }, refresh);
+    double elapsed = 0, lastEdge = 0, stepStart = 0;
+    while (p.phase() == Phase::Return) {
+      const auto old = p.pose().index;
+      step(p, refresh);
+      elapsed += refresh;
+      if (old != p.pose().index) {
+        lastEdge = elapsed - stepStart;
+        stepStart = elapsed;
+      }
+    }
+    assert(elapsed > 1.2 && elapsed < 1.6);
+    assert(lastEdge > 0.08 && lastEdge < 0.14);
+  }
 }
 
 static void queueCycleAndControls() {

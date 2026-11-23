@@ -27,6 +27,8 @@ class CharacterEffects {
   // Restore before SpriteRenderer::render; overlay only after its successful render.
   bool restore(uint16_t* frame);
   bool render(const CharacterState& state, uint16_t* frame);
+  // Marks 16x16 framebuffer tiles touched by current effects and overlays.
+  void markTiles(const uint16_t* frame, uint32_t* tileMask, int tileRows) const;
   const char* error() const { return error_; }
 
  private:

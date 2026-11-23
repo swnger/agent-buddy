@@ -193,6 +193,141 @@ int main() {
   SpriteRenderer wrongStride(canvasOpen.data(), otherOpen.data(), canvasPatch.data(),
                              patchPixels, canvasFrame, otherCanvas.data(), inflate, 414, 466);
   assert(!wrongStride.render({0, 0, 0}, canvasFrame) && wrongStride.error());
+
+  // Packed-span ring cache + single-pass cold-miss + prefetch + tile-mask tests.
+  {
+    const size_t basePixels = static_cast<size_t>(kSpriteBaseWidth) * kSpriteBaseHeight;
+    std::vector<uint16_t> poolBuf(3 * basePixels, 0);
+    std::vector<SpriteRenderer::RowSpan> rowSpans(4 * kSpriteHeight);
+    std::vector<uint16_t> cOpen0(guardedPatch), cOpen1(guardedPatch), cPatch(guardedPatch);
+    std::vector<uint16_t> cFrame0(outputPixels, 0), cFrame1(outputPixels, 0);
+    static SpritePredictor hostPredictor;
+    static unsigned rowInflateCalls = 0;
+    auto inflateRowsHost = [](const uint8_t* input, size_t inputSize, size_t width, size_t height,
+                              SpriteRenderer::RowCallback onRow, void* ctx) -> bool {
+      ++rowInflateCalls;
+      std::vector<uint8_t> raw(width * height * 2);
+      uLongf destLen = static_cast<uLongf>(raw.size());
+      if (uncompress(raw.data(), &destLen, input, static_cast<uLong>(inputSize)) != Z_OK
+          || destLen != raw.size()) return false;
+      return hostPredictor.resetRows(width, height, onRow, ctx)
+          && hostPredictor.consume(raw.data(), raw.size())
+          && hostPredictor.complete();
+    };
+    SpriteRenderer cached(cOpen0.data(), cOpen1.data(), cPatch.data(), patchPixels,
+                          cFrame0.data(), cFrame1.data(), inflate);
+    cached.setBaseCache(poolBuf.data(), poolBuf.size(), rowSpans.data(), 4,
+                        nullptr, 0, inflateRowsHost);
+    rowInflateCalls = 0;
+    assert(cached.render({0, 5, 0}, cFrame0.data()));
+    assert(cached.cacheMisses == 1 && cached.cacheHits == 0 && rowInflateCalls == 1);
+    assert(cached.hasCachedPose(0, 5));
+    // Second framebuffer hits packed cache instead of re-inflating.
+    assert(cached.render({0, 5, 0}, cFrame1.data()));
+    assert(cached.cacheMisses == 1 && cached.cacheHits == 1 && rowInflateCalls == 1);
+    assert(cFrame0 == cFrame1);
+    // Verify preparePrefetch / commitPrefetch makes subsequent render an immediate cache hit.
+    SpriteRenderer::PrefetchTarget pt{};
+    assert(cached.preparePrefetch(0, 6, pt));
+    struct PrefetchAcc {
+      SpriteRenderer* r;
+      SpriteRenderer::PrefetchTarget* t;
+      size_t written = 0;
+      bool overflow = false;
+    } acc{&cached, &pt, 0, false};
+    assert(inflateRowsHost(kSpriteData + pt.block.offset, pt.block.size, pt.baseWidth, pt.baseHeight,
+                           [](void* o, size_t y, const uint16_t* row, int b, int e) {
+                             auto* a = static_cast<PrefetchAcc*>(o);
+                             if (a->overflow) return;
+                             if (b >= e) b = e = 0;
+                             const size_t count = static_cast<size_t>(e - b);
+                             if (count && a->t->poolOffset + a->written + count > a->t->nextEvictOffset) {
+                               if (!a->r->evictPoolRange(a->t->poolOffset, a->t->poolOffset + a->written + count,
+                                                         a->t->nextEvictOffset, false)) {
+                                 a->overflow = true;
+                                 return;
+                               }
+                             }
+                             a->t->slotSpans[y] = {static_cast<int16_t>(b), static_cast<int16_t>(e)};
+                             if (count) {
+                               std::memcpy(a->t->poolDst + a->written, row + b, count * sizeof(uint16_t));
+                               a->written += count;
+                             }
+                           },
+                           &acc) && !acc.overflow);
+    cached.commitPrefetch(pt, acc.written);
+    assert(cached.hasCachedPose(0, 6));
+    assert(cached.hasBaseForFrame(0, 5, cFrame0.data()));
+    assert(!cached.hasBaseForFrame(0, 6, cFrame0.data()));
+    const unsigned hitsBefore = cached.cacheHits;
+    assert(cached.render({0, 6, 0}, cFrame0.data()));
+    assert(cached.cacheHits == hitsBefore + 1);
+    assert(cached.hasBaseForFrame(0, 6, cFrame0.data()));
+    assert(renderer.render({0, 6, 0}, frame));
+    assert(std::memcmp(frame, cFrame0.data(), outputPixels * 2) == 0);
+
+    // Verify pinPose protects a pose across ring wraps and lazy eviction preserves untouched slots on cancel.
+    cached.pinPose(0, 6);
+    for (uint8_t idx : {7, 8, 9, 10, 11}) {
+      SpriteRenderer::PrefetchTarget p{};
+      if (cached.preparePrefetch(0, idx, p)) {
+        PrefetchAcc pAcc{&cached, &p, 0, false};
+        assert(inflateRowsHost(kSpriteData + p.block.offset, p.block.size, p.baseWidth, p.baseHeight,
+                               [](void* o, size_t y, const uint16_t* row, int b, int e) {
+                                 auto* a = static_cast<PrefetchAcc*>(o);
+                                 if (a->overflow) return;
+                                 if (b >= e) b = e = 0;
+                                 const size_t count = static_cast<size_t>(e - b);
+                                 if (count && a->t->poolOffset + a->written + count > a->t->nextEvictOffset) {
+                                   if (!a->r->evictPoolRange(a->t->poolOffset, a->t->poolOffset + a->written + count,
+                                                             a->t->nextEvictOffset, false)) {
+                                     a->overflow = true;
+                                     return;
+                                   }
+                                 }
+                                 a->t->slotSpans[y] = {static_cast<int16_t>(b), static_cast<int16_t>(e)};
+                                 if (count) {
+                                   std::memcpy(a->t->poolDst + a->written, row + b, count * sizeof(uint16_t));
+                                   a->written += count;
+                                 }
+                               },
+                               &pAcc) && !pAcc.overflow);
+        cached.commitPrefetch(p, pAcc.written);
+      }
+      assert(cached.hasCachedPose(0, 6));
+    }
+    // Cancelling a prefetch before writing preserves existing slots in its reserved range.
+    const bool elevenWasCached = cached.hasCachedPose(0, 11);
+    SpriteRenderer::PrefetchTarget cancelled{};
+    if (cached.preparePrefetch(0, 12, cancelled)) {
+      cached.cancelPrefetch(cancelled);
+    }
+    assert(cached.hasCachedPose(0, 6));
+    if (elevenWasCached) assert(cached.hasCachedPose(0, 11));
+    // Verify tile mask covers every non-black pixel in cFrame0.
+    constexpr int kTileRows = (kSpriteHeight + 15) / 16;
+    uint32_t mask[kTileRows]{};
+    cached.fillTileMask(cFrame0.data(), mask, kTileRows);
+    for (int y = 0; y < kSpriteHeight; ++y) {
+      for (int x = 0; x < kSpriteWidth; ++x) {
+        if (cFrame0[y * kSpriteWidth + x] != 0) {
+          assert((mask[y >> 4] & (uint32_t(1) << (x >> 4))) != 0);
+        }
+      }
+    }
+    // Verify pixel-exact match against uncached renderer across ring wraps, evictions, and blinks.
+    for (const SpritePose& pose : {SpritePose{0, 23, 0}, SpritePose{0, 23, 3}, SpritePose{0, 23, 0},
+                                   SpritePose{1, 18, 0}, SpritePose{2, 8, 2}, SpritePose{0, 5, 0},
+                                   SpritePose{4, 15, 0, 128}, SpritePose{9, 12, 0}, SpritePose{11, 20, 4},
+                                   SpritePose{11, 20, 0}, SpritePose{0, 5, 0}}) {
+      assert(renderer.render(pose, frame));
+      assert(cached.render(pose, cFrame0.data()));
+      assert(std::memcmp(frame, cFrame0.data(), outputPixels * 2) == 0);
+      assert(cached.render(pose, cFrame1.data()));
+      assert(std::memcmp(frame, cFrame1.data(), outputPixels * 2) == 0);
+    }
+  }
+
   std::ofstream image("build/sprite-host-frame.ppm", std::ios::binary);
   image << "P6\n" << kSpriteWidth << " " << kSpriteHeight << "\n255\n";
   for (size_t i = 0; i < outputPixels; ++i) {

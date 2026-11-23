@@ -8,8 +8,10 @@
 namespace copilot {
 OrientedDisplay::OrientedDisplay(board::DisplayPanel* panel, Arduino_DataBus* bus,
                                  const DisplayScanout& scanout, void (*setBrightness)(uint8_t))
-    : Arduino_Canvas(kDisplaySize, kDisplaySize, nullptr), panel_(panel), bus_(bus),
-      setBrightness_(setBrightness), dma_(scanout) {}
+    : Arduino_Canvas(kDisplaySize, kDisplaySize, nullptr), panel_(panel),
+      setBrightness_(setBrightness), dma_(scanout) {
+  (void)bus;
+}
 
 bool OrientedDisplay::begin(int32_t speed) {
   error_ = nullptr;
@@ -61,8 +63,9 @@ void OrientedDisplay::flush(bool forceFlush) {
 }
 
 bool OrientedDisplay::flushFrame(
-    const uint16_t* pixels, int x, int y, int width, int height) {
-  return flushSource({pixels, x, y, width, height, Rgb565Order::Display});
+    const uint16_t* pixels, int x, int y, int width, int height,
+    const uint32_t* tileMask, int tileRows) {
+  return flushSource({pixels, x, y, width, height, Rgb565Order::Display, tileMask, tileRows});
 }
 
 bool OrientedDisplay::flushSource(const ScreenPixels& source) {
@@ -103,34 +106,58 @@ bool OrientedDisplay::flushSource(const ScreenPixels& source) {
                             + (left - kPanelContentX - source.x);
     panel_->startWrite();
     panel_->writeAddrWindow(left, top, width, bottom - top);
-    const int64_t started = esp_timer_get_time();
+    panel_->endWrite();
+    if (!dma_.start()) {
+      error_ = dma_.error();
+      return false;
+    }
+    const size_t halfBytes = dma_.bufferBytes();
     if (width == source.width) {
-      // Whole source rows: one run of pixels.
+      // Whole source rows: overlap PSRAM->DMA copy with double-buffered QSPI DMA transfer.
       const auto* bytes = reinterpret_cast<const uint8_t*>(first);
       const size_t count = static_cast<size_t>(width) * (bottom - top) * sizeof(uint16_t);
-      for (size_t offset = 0; offset < count; offset += transferBytes_) {
-        const size_t batch = std::min(transferBytes_, count - offset);
-        std::memcpy(transferBuffer_, bytes + offset, batch);
-        bus_->writeBytes(transferBuffer_, batch);
+      for (size_t offset = 0; offset < count; offset += halfBytes) {
+        const size_t batch = std::min(halfBytes, count - offset);
+        const int64_t waiting = esp_timer_get_time();
+        uint8_t* slot = dma_.acquire();
+        writeUs_ += esp_timer_get_time() - waiting;
+        if (!slot) break;
+        const int64_t started = esp_timer_get_time();
+        std::memcpy(slot, bytes + offset, batch);
+        const int64_t copied = esp_timer_get_time();
+        composeUs_ += copied - started;
+        if (!dma_.submit(batch)) break;
+        writeUs_ += esp_timer_get_time() - copied;
       }
     } else {
       // The middle of each source row.
       const size_t rowBytes = static_cast<size_t>(width) * sizeof(uint16_t);
-      const int rowsPerBatch = static_cast<int>(transferBytes_ / rowBytes);
+      const int rowsPerBatch = static_cast<int>(halfBytes / rowBytes);
       for (int row = top; row < bottom; row += rowsPerBatch) {
         const int rows = std::min(rowsPerBatch, bottom - row);
+        const int64_t waiting = esp_timer_get_time();
+        uint8_t* slot = dma_.acquire();
+        writeUs_ += esp_timer_get_time() - waiting;
+        if (!slot) break;
+        const int64_t started = esp_timer_get_time();
         for (int index = 0; index < rows; ++index)
-          std::memcpy(transferBuffer_ + index * rowBytes,
+          std::memcpy(slot + index * rowBytes,
                       first + static_cast<size_t>(row - top + index) * source.width, rowBytes);
-        bus_->writeBytes(transferBuffer_, rows * rowBytes);
+        const int64_t copied = esp_timer_get_time();
+        composeUs_ += copied - started;
+        if (!dma_.submit(rows * rowBytes)) break;
+        writeUs_ += esp_timer_get_time() - copied;
       }
     }
-    panel_->endWrite();
-    writeUs_ = esp_timer_get_time() - started;
-    return true;
+    const int64_t waiting = esp_timer_get_time();
+    const bool completed = dma_.finish();
+    writeUs_ += esp_timer_get_time() - waiting;
+    if (!completed && !error_) error_ = dma_.error();
+    return error_ == nullptr;
   }
 
-  const ScreenTransform transform(kPanelWidth, kPanelHeight, kDisplaySize, kShownContentSize, angle());
+  const ScreenTransform transform(kPanelWidth, kPanelHeight, kDisplaySize, kShownContentSize,
+                                  angle(), kRoundPanel && source.order == Rgb565Order::Display);
   const size_t capacity = dma_.bufferBytes() / sizeof(uint16_t);
   const int rowsPerBatch = static_cast<int>(std::min(
       capacity / kPanelWidth, static_cast<size_t>(kPanelHeight)));

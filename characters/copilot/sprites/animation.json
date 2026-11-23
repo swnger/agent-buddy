@@ -45,37 +45,6 @@
         {
           "file": "right-01.png",
           "sourceBounds": [
-            320,
-            79,
-            495,
-            219
-          ],
-          "uniformScale": 1.1388888888888888,
-          "eyes": [
-            [
-              94,
-              125,
-              108,
-              150
-            ],
-            [
-              133,
-              125,
-              147,
-              150
-            ]
-          ],
-          "blinkMaskState": "visible",
-          "blinks": [
-            "right-01-blink-1.png",
-            "right-01-blink-2.png",
-            "right-01-blink-3.png",
-            "right-01-blink-4.png"
-          ]
-        },
-        {
-          "file": "right-02.png",
-          "sourceBounds": [
             558,
             79,
             733,
@@ -98,6 +67,37 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
+            "right-01-blink-1.png",
+            "right-01-blink-2.png",
+            "right-01-blink-3.png",
+            "right-01-blink-4.png"
+          ]
+        },
+        {
+          "file": "right-02.png",
+          "sourceBounds": [
+            798,
+            79,
+            971,
+            216
+          ],
+          "uniformScale": 1.1631205673758864,
+          "eyes": [
+            [
+              104,
+              125,
+              118,
+              150
+            ],
+            [
+              143,
+              125,
+              156,
+              150
+            ]
+          ],
+          "blinkMaskState": "visible",
+          "blinks": [
             "right-02-blink-1.png",
             "right-02-blink-2.png",
             "right-02-blink-3.png",
@@ -106,6 +106,37 @@
         },
         {
           "file": "right-03.png",
+          "sourceBounds": [
+            798,
+            79,
+            971,
+            216
+          ],
+          "uniformScale": 1.1631205673758864,
+          "eyes": [
+            [
+              109,
+              125,
+              124,
+              150
+            ],
+            [
+              148,
+              125,
+              162,
+              150
+            ]
+          ],
+          "blinkMaskState": "visible",
+          "blinks": [
+            "right-03-blink-1.png",
+            "right-03-blink-2.png",
+            "right-03-blink-3.png",
+            "right-03-blink-4.png"
+          ]
+        },
+        {
+          "file": "right-04.png",
           "sourceBounds": [
             798,
             79,
@@ -129,14 +160,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "right-03-blink-1.png",
-            "right-03-blink-2.png",
-            "right-03-blink-3.png",
-            "right-03-blink-4.png"
+            "right-04-blink-1.png",
+            "right-04-blink-2.png",
+            "right-04-blink-3.png",
+            "right-04-blink-4.png"
           ]
         },
         {
-          "file": "right-04.png",
+          "file": "right-05.png",
           "sourceBounds": [
             1039,
             79,
@@ -155,37 +186,6 @@
               159,
               125,
               172,
-              150
-            ]
-          ],
-          "blinkMaskState": "visible",
-          "blinks": [
-            "right-04-blink-1.png",
-            "right-04-blink-2.png",
-            "right-04-blink-3.png",
-            "right-04-blink-4.png"
-          ]
-        },
-        {
-          "file": "right-05.png",
-          "sourceBounds": [
-            1281,
-            79,
-            1450,
-            216
-          ],
-          "uniformScale": 1.1631205673758864,
-          "eyes": [
-            [
-              124,
-              125,
-              138,
-              150
-            ],
-            [
-              162,
-              125,
-              174,
               150
             ]
           ],
@@ -2861,7 +2861,7 @@
       "count": 24,
       "frames": [
         {
-          "file": "up_right-generated-00.png",
+          "file": "up_right-00.png",
           "sourceBounds": [
             62,
             37,
@@ -2885,14 +2885,107 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-00-blink-1.png",
-            "up_right-generated-00-blink-2.png",
-            "up_right-generated-00-blink-3.png",
-            "up_right-generated-00-blink-4.png"
+            "up_right-00-blink-1.png",
+            "up_right-00-blink-2.png",
+            "up_right-00-blink-3.png",
+            "up_right-00-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-01.png",
+          "file": "up_right-01.png",
+          "sourceBounds": [
+            317,
+            39,
+            525,
+            203
+          ],
+          "uniformScale": 0.9761904761904762,
+          "eyes": [
+            [
+              97,
+              124,
+              112,
+              150
+            ],
+            [
+              137,
+              124,
+              151,
+              150
+            ]
+          ],
+          "blinkMaskState": "visible",
+          "blinks": [
+            "up_right-01-blink-1.png",
+            "up_right-01-blink-2.png",
+            "up_right-01-blink-3.png",
+            "up_right-01-blink-4.png"
+          ]
+        },
+        {
+          "file": "up_right-02.png",
+          "sourceBounds": [
+            317,
+            39,
+            525,
+            203
+          ],
+          "uniformScale": 0.9761904761904762,
+          "eyes": [
+            [
+              101,
+              124,
+              116,
+              150
+            ],
+            [
+              141,
+              124,
+              156,
+              150
+            ]
+          ],
+          "blinkMaskState": "visible",
+          "blinks": [
+            "up_right-02-blink-1.png",
+            "up_right-02-blink-2.png",
+            "up_right-02-blink-3.png",
+            "up_right-02-blink-4.png"
+          ]
+        },
+        {
+          "file": "up_right-03.png",
+          "sourceBounds": [
+            317,
+            39,
+            525,
+            203
+          ],
+          "uniformScale": 0.9761904761904762,
+          "eyes": [
+            [
+              105,
+              124,
+              120,
+              150
+            ],
+            [
+              145,
+              123,
+              160,
+              150
+            ]
+          ],
+          "blinkMaskState": "visible",
+          "blinks": [
+            "up_right-03-blink-1.png",
+            "up_right-03-blink-2.png",
+            "up_right-03-blink-3.png",
+            "up_right-03-blink-4.png"
+          ]
+        },
+        {
+          "file": "up_right-04.png",
           "sourceBounds": [
             317,
             39,
@@ -2916,14 +3009,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-01-blink-1.png",
-            "up_right-generated-01-blink-2.png",
-            "up_right-generated-01-blink-3.png",
-            "up_right-generated-01-blink-4.png"
+            "up_right-04-blink-1.png",
+            "up_right-04-blink-2.png",
+            "up_right-04-blink-3.png",
+            "up_right-04-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-02.png",
+          "file": "up_right-05.png",
           "sourceBounds": [
             564,
             41,
@@ -2947,14 +3040,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-02-blink-1.png",
-            "up_right-generated-02-blink-2.png",
-            "up_right-generated-02-blink-3.png",
-            "up_right-generated-02-blink-4.png"
+            "up_right-05-blink-1.png",
+            "up_right-05-blink-2.png",
+            "up_right-05-blink-3.png",
+            "up_right-05-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-03.png",
+          "file": "up_right-06.png",
           "sourceBounds": [
             813,
             43,
@@ -2978,14 +3071,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-03-blink-1.png",
-            "up_right-generated-03-blink-2.png",
-            "up_right-generated-03-blink-3.png",
-            "up_right-generated-03-blink-4.png"
+            "up_right-06-blink-1.png",
+            "up_right-06-blink-2.png",
+            "up_right-06-blink-3.png",
+            "up_right-06-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-04.png",
+          "file": "up_right-07.png",
           "sourceBounds": [
             1064,
             43,
@@ -3009,14 +3102,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-04-blink-1.png",
-            "up_right-generated-04-blink-2.png",
-            "up_right-generated-04-blink-3.png",
-            "up_right-generated-04-blink-4.png"
+            "up_right-07-blink-1.png",
+            "up_right-07-blink-2.png",
+            "up_right-07-blink-3.png",
+            "up_right-07-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-05.png",
+          "file": "up_right-08.png",
           "sourceBounds": [
             1310,
             45,
@@ -3040,14 +3133,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-05-blink-1.png",
-            "up_right-generated-05-blink-2.png",
-            "up_right-generated-05-blink-3.png",
-            "up_right-generated-05-blink-4.png"
+            "up_right-08-blink-1.png",
+            "up_right-08-blink-2.png",
+            "up_right-08-blink-3.png",
+            "up_right-08-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-06.png",
+          "file": "up_right-09.png",
           "sourceBounds": [
             57,
             270,
@@ -3071,14 +3164,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-06-blink-1.png",
-            "up_right-generated-06-blink-2.png",
-            "up_right-generated-06-blink-3.png",
-            "up_right-generated-06-blink-4.png"
+            "up_right-09-blink-1.png",
+            "up_right-09-blink-2.png",
+            "up_right-09-blink-3.png",
+            "up_right-09-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-07.png",
+          "file": "up_right-10.png",
           "sourceBounds": [
             307,
             272,
@@ -3102,14 +3195,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-07-blink-1.png",
-            "up_right-generated-07-blink-2.png",
-            "up_right-generated-07-blink-3.png",
-            "up_right-generated-07-blink-4.png"
+            "up_right-10-blink-1.png",
+            "up_right-10-blink-2.png",
+            "up_right-10-blink-3.png",
+            "up_right-10-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-08.png",
+          "file": "up_right-11.png",
           "sourceBounds": [
             559,
             277,
@@ -3133,14 +3226,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-08-blink-1.png",
-            "up_right-generated-08-blink-2.png",
-            "up_right-generated-08-blink-3.png",
-            "up_right-generated-08-blink-4.png"
+            "up_right-11-blink-1.png",
+            "up_right-11-blink-2.png",
+            "up_right-11-blink-3.png",
+            "up_right-11-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-09.png",
+          "file": "up_right-12.png",
           "sourceBounds": [
             809,
             279,
@@ -3164,14 +3257,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-09-blink-1.png",
-            "up_right-generated-09-blink-2.png",
-            "up_right-generated-09-blink-3.png",
-            "up_right-generated-09-blink-4.png"
+            "up_right-12-blink-1.png",
+            "up_right-12-blink-2.png",
+            "up_right-12-blink-3.png",
+            "up_right-12-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-10.png",
+          "file": "up_right-13.png",
           "sourceBounds": [
             1057,
             283,
@@ -3195,14 +3288,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-10-blink-1.png",
-            "up_right-generated-10-blink-2.png",
-            "up_right-generated-10-blink-3.png",
-            "up_right-generated-10-blink-4.png"
+            "up_right-13-blink-1.png",
+            "up_right-13-blink-2.png",
+            "up_right-13-blink-3.png",
+            "up_right-13-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-11.png",
+          "file": "up_right-14.png",
           "sourceBounds": [
             1301,
             287,
@@ -3226,14 +3319,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-11-blink-1.png",
-            "up_right-generated-11-blink-2.png",
-            "up_right-generated-11-blink-3.png",
-            "up_right-generated-11-blink-4.png"
+            "up_right-14-blink-1.png",
+            "up_right-14-blink-2.png",
+            "up_right-14-blink-3.png",
+            "up_right-14-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-12.png",
+          "file": "up_right-15.png",
           "sourceBounds": [
             57,
             507,
@@ -3257,14 +3350,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-12-blink-1.png",
-            "up_right-generated-12-blink-2.png",
-            "up_right-generated-12-blink-3.png",
-            "up_right-generated-12-blink-4.png"
+            "up_right-15-blink-1.png",
+            "up_right-15-blink-2.png",
+            "up_right-15-blink-3.png",
+            "up_right-15-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-13.png",
+          "file": "up_right-16.png",
           "sourceBounds": [
             307,
             509,
@@ -3288,14 +3381,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-13-blink-1.png",
-            "up_right-generated-13-blink-2.png",
-            "up_right-generated-13-blink-3.png",
-            "up_right-generated-13-blink-4.png"
+            "up_right-16-blink-1.png",
+            "up_right-16-blink-2.png",
+            "up_right-16-blink-3.png",
+            "up_right-16-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-14.png",
+          "file": "up_right-17.png",
           "sourceBounds": [
             560,
             511,
@@ -3319,14 +3412,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-14-blink-1.png",
-            "up_right-generated-14-blink-2.png",
-            "up_right-generated-14-blink-3.png",
-            "up_right-generated-14-blink-4.png"
+            "up_right-17-blink-1.png",
+            "up_right-17-blink-2.png",
+            "up_right-17-blink-3.png",
+            "up_right-17-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-15.png",
+          "file": "up_right-18.png",
           "sourceBounds": [
             811,
             514,
@@ -3350,14 +3443,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-15-blink-1.png",
-            "up_right-generated-15-blink-2.png",
-            "up_right-generated-15-blink-3.png",
-            "up_right-generated-15-blink-4.png"
+            "up_right-18-blink-1.png",
+            "up_right-18-blink-2.png",
+            "up_right-18-blink-3.png",
+            "up_right-18-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-16.png",
+          "file": "up_right-19.png",
           "sourceBounds": [
             1056,
             515,
@@ -3381,14 +3474,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-16-blink-1.png",
-            "up_right-generated-16-blink-2.png",
-            "up_right-generated-16-blink-3.png",
-            "up_right-generated-16-blink-4.png"
+            "up_right-19-blink-1.png",
+            "up_right-19-blink-2.png",
+            "up_right-19-blink-3.png",
+            "up_right-19-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-17.png",
+          "file": "up_right-20.png",
           "sourceBounds": [
             1300,
             516,
@@ -3412,14 +3505,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-17-blink-1.png",
-            "up_right-generated-17-blink-2.png",
-            "up_right-generated-17-blink-3.png",
-            "up_right-generated-17-blink-4.png"
+            "up_right-20-blink-1.png",
+            "up_right-20-blink-2.png",
+            "up_right-20-blink-3.png",
+            "up_right-20-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-18.png",
+          "file": "up_right-21.png",
           "sourceBounds": [
             49,
             741,
@@ -3443,14 +3536,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-18-blink-1.png",
-            "up_right-generated-18-blink-2.png",
-            "up_right-generated-18-blink-3.png",
-            "up_right-generated-18-blink-4.png"
+            "up_right-21-blink-1.png",
+            "up_right-21-blink-2.png",
+            "up_right-21-blink-3.png",
+            "up_right-21-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-19.png",
+          "file": "up_right-22.png",
           "sourceBounds": [
             301,
             744,
@@ -3474,14 +3567,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-19-blink-1.png",
-            "up_right-generated-19-blink-2.png",
-            "up_right-generated-19-blink-3.png",
-            "up_right-generated-19-blink-4.png"
+            "up_right-22-blink-1.png",
+            "up_right-22-blink-2.png",
+            "up_right-22-blink-3.png",
+            "up_right-22-blink-4.png"
           ]
         },
         {
-          "file": "up_right-generated-20.png",
+          "file": "up_right-23.png",
           "sourceBounds": [
             556,
             747,
@@ -3505,103 +3598,10 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_right-generated-20-blink-1.png",
-            "up_right-generated-20-blink-2.png",
-            "up_right-generated-20-blink-3.png",
-            "up_right-generated-20-blink-4.png"
-          ]
-        },
-        {
-          "file": "up_right-generated-21.png",
-          "sourceBounds": [
-            810,
-            747,
-            975,
-            893
-          ],
-          "uniformScale": 1.0933333333333333,
-          "eyes": [
-            [
-              123,
-              84,
-              143,
-              107
-            ],
-            [
-              156,
-              87,
-              172,
-              106
-            ]
-          ],
-          "blinkMaskState": "visible",
-          "blinks": [
-            "up_right-generated-21-blink-1.png",
-            "up_right-generated-21-blink-2.png",
-            "up_right-generated-21-blink-3.png",
-            "up_right-generated-21-blink-4.png"
-          ]
-        },
-        {
-          "file": "up_right-generated-22.png",
-          "sourceBounds": [
-            1066,
-            745,
-            1232,
-            895
-          ],
-          "uniformScale": 1.0649350649350648,
-          "eyes": [
-            [
-              127,
-              90,
-              147,
-              113
-            ],
-            [
-              158,
-              88,
-              175,
-              109
-            ]
-          ],
-          "blinkMaskState": "visible",
-          "blinks": [
-            "up_right-generated-22-blink-1.png",
-            "up_right-generated-22-blink-2.png",
-            "up_right-generated-22-blink-3.png",
-            "up_right-generated-22-blink-4.png"
-          ]
-        },
-        {
-          "file": "up_right-generated-23.png",
-          "sourceBounds": [
-            1308,
-            740,
-            1476,
-            891
-          ],
-          "uniformScale": 1.0580645161290323,
-          "eyes": [
-            [
-              132,
-              93,
-              152,
-              117
-            ],
-            [
-              162,
-              93,
-              177,
-              114
-            ]
-          ],
-          "blinkMaskState": "visible",
-          "blinks": [
-            "up_right-generated-23-blink-1.png",
-            "up_right-generated-23-blink-2.png",
-            "up_right-generated-23-blink-3.png",
-            "up_right-generated-23-blink-4.png"
+            "up_right-23-blink-1.png",
+            "up_right-23-blink-2.png",
+            "up_right-23-blink-3.png",
+            "up_right-23-blink-4.png"
           ]
         }
       ],
@@ -3621,7 +3621,7 @@
       "count": 24,
       "frames": [
         {
-          "file": "up_left-generated-00.png",
+          "file": "up_left-00.png",
           "sourceBounds": [
             67,
             88,
@@ -3645,14 +3645,45 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-00-blink-1.png",
-            "up_left-generated-00-blink-2.png",
-            "up_left-generated-00-blink-3.png",
-            "up_left-generated-00-blink-4.png"
+            "up_left-00-blink-1.png",
+            "up_left-00-blink-2.png",
+            "up_left-00-blink-3.png",
+            "up_left-00-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-01.png",
+          "file": "up_left-01.png",
+          "sourceBounds": [
+            310,
+            89,
+            505,
+            244
+          ],
+          "uniformScale": 1.0314465408805031,
+          "eyes": [
+            [
+              91,
+              124,
+              106,
+              150
+            ],
+            [
+              131,
+              124,
+              146,
+              150
+            ]
+          ],
+          "blinkMaskState": "visible",
+          "blinks": [
+            "up_left-01-blink-1.png",
+            "up_left-01-blink-2.png",
+            "up_left-01-blink-3.png",
+            "up_left-01-blink-4.png"
+          ]
+        },
+        {
+          "file": "up_left-02.png",
           "sourceBounds": [
             310,
             89,
@@ -3676,14 +3707,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-01-blink-1.png",
-            "up_left-generated-01-blink-2.png",
-            "up_left-generated-01-blink-3.png",
-            "up_left-generated-01-blink-4.png"
+            "up_left-02-blink-1.png",
+            "up_left-02-blink-2.png",
+            "up_left-02-blink-3.png",
+            "up_left-02-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-02.png",
+          "file": "up_left-03.png",
           "sourceBounds": [
             552,
             90,
@@ -3707,14 +3738,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-02-blink-1.png",
-            "up_left-generated-02-blink-2.png",
-            "up_left-generated-02-blink-3.png",
-            "up_left-generated-02-blink-4.png"
+            "up_left-03-blink-1.png",
+            "up_left-03-blink-2.png",
+            "up_left-03-blink-3.png",
+            "up_left-03-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-03.png",
+          "file": "up_left-04.png",
           "sourceBounds": [
             792,
             92,
@@ -3738,14 +3769,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-03-blink-1.png",
-            "up_left-generated-03-blink-2.png",
-            "up_left-generated-03-blink-3.png",
-            "up_left-generated-03-blink-4.png"
+            "up_left-04-blink-1.png",
+            "up_left-04-blink-2.png",
+            "up_left-04-blink-3.png",
+            "up_left-04-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-04.png",
+          "file": "up_left-05.png",
           "sourceBounds": [
             1033,
             92,
@@ -3769,14 +3800,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-04-blink-1.png",
-            "up_left-generated-04-blink-2.png",
-            "up_left-generated-04-blink-3.png",
-            "up_left-generated-04-blink-4.png"
+            "up_left-05-blink-1.png",
+            "up_left-05-blink-2.png",
+            "up_left-05-blink-3.png",
+            "up_left-05-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-05.png",
+          "file": "up_left-06.png",
           "sourceBounds": [
             1275,
             93,
@@ -3800,14 +3831,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-05-blink-1.png",
-            "up_left-generated-05-blink-2.png",
-            "up_left-generated-05-blink-3.png",
-            "up_left-generated-05-blink-4.png"
+            "up_left-06-blink-1.png",
+            "up_left-06-blink-2.png",
+            "up_left-06-blink-3.png",
+            "up_left-06-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-06.png",
+          "file": "up_left-07.png",
           "sourceBounds": [
             75,
             315,
@@ -3831,14 +3862,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-06-blink-1.png",
-            "up_left-generated-06-blink-2.png",
-            "up_left-generated-06-blink-3.png",
-            "up_left-generated-06-blink-4.png"
+            "up_left-07-blink-1.png",
+            "up_left-07-blink-2.png",
+            "up_left-07-blink-3.png",
+            "up_left-07-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-07.png",
+          "file": "up_left-08.png",
           "sourceBounds": [
             318,
             317,
@@ -3862,14 +3893,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-07-blink-1.png",
-            "up_left-generated-07-blink-2.png",
-            "up_left-generated-07-blink-3.png",
-            "up_left-generated-07-blink-4.png"
+            "up_left-08-blink-1.png",
+            "up_left-08-blink-2.png",
+            "up_left-08-blink-3.png",
+            "up_left-08-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-08.png",
+          "file": "up_left-09.png",
           "sourceBounds": [
             558,
             318,
@@ -3893,14 +3924,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-08-blink-1.png",
-            "up_left-generated-08-blink-2.png",
-            "up_left-generated-08-blink-3.png",
-            "up_left-generated-08-blink-4.png"
+            "up_left-09-blink-1.png",
+            "up_left-09-blink-2.png",
+            "up_left-09-blink-3.png",
+            "up_left-09-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-09.png",
+          "file": "up_left-10.png",
           "sourceBounds": [
             799,
             320,
@@ -3924,14 +3955,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-09-blink-1.png",
-            "up_left-generated-09-blink-2.png",
-            "up_left-generated-09-blink-3.png",
-            "up_left-generated-09-blink-4.png"
+            "up_left-10-blink-1.png",
+            "up_left-10-blink-2.png",
+            "up_left-10-blink-3.png",
+            "up_left-10-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-10.png",
+          "file": "up_left-11.png",
           "sourceBounds": [
             1040,
             323,
@@ -3955,14 +3986,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-10-blink-1.png",
-            "up_left-generated-10-blink-2.png",
-            "up_left-generated-10-blink-3.png",
-            "up_left-generated-10-blink-4.png"
+            "up_left-11-blink-1.png",
+            "up_left-11-blink-2.png",
+            "up_left-11-blink-3.png",
+            "up_left-11-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-11.png",
+          "file": "up_left-12.png",
           "sourceBounds": [
             1281,
             325,
@@ -3986,14 +4017,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-11-blink-1.png",
-            "up_left-generated-11-blink-2.png",
-            "up_left-generated-11-blink-3.png",
-            "up_left-generated-11-blink-4.png"
+            "up_left-12-blink-1.png",
+            "up_left-12-blink-2.png",
+            "up_left-12-blink-3.png",
+            "up_left-12-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-12.png",
+          "file": "up_left-13.png",
           "sourceBounds": [
             82,
             543,
@@ -4017,14 +4048,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-12-blink-1.png",
-            "up_left-generated-12-blink-2.png",
-            "up_left-generated-12-blink-3.png",
-            "up_left-generated-12-blink-4.png"
+            "up_left-13-blink-1.png",
+            "up_left-13-blink-2.png",
+            "up_left-13-blink-3.png",
+            "up_left-13-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-13.png",
+          "file": "up_left-14.png",
           "sourceBounds": [
             324,
             547,
@@ -4048,14 +4079,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-13-blink-1.png",
-            "up_left-generated-13-blink-2.png",
-            "up_left-generated-13-blink-3.png",
-            "up_left-generated-13-blink-4.png"
+            "up_left-14-blink-1.png",
+            "up_left-14-blink-2.png",
+            "up_left-14-blink-3.png",
+            "up_left-14-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-14.png",
+          "file": "up_left-15.png",
           "sourceBounds": [
             564,
             550,
@@ -4079,14 +4110,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-14-blink-1.png",
-            "up_left-generated-14-blink-2.png",
-            "up_left-generated-14-blink-3.png",
-            "up_left-generated-14-blink-4.png"
+            "up_left-15-blink-1.png",
+            "up_left-15-blink-2.png",
+            "up_left-15-blink-3.png",
+            "up_left-15-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-15.png",
+          "file": "up_left-16.png",
           "sourceBounds": [
             805,
             554,
@@ -4110,14 +4141,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-15-blink-1.png",
-            "up_left-generated-15-blink-2.png",
-            "up_left-generated-15-blink-3.png",
-            "up_left-generated-15-blink-4.png"
+            "up_left-16-blink-1.png",
+            "up_left-16-blink-2.png",
+            "up_left-16-blink-3.png",
+            "up_left-16-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-16.png",
+          "file": "up_left-17.png",
           "sourceBounds": [
             1045,
             558,
@@ -4141,14 +4172,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-16-blink-1.png",
-            "up_left-generated-16-blink-2.png",
-            "up_left-generated-16-blink-3.png",
-            "up_left-generated-16-blink-4.png"
+            "up_left-17-blink-1.png",
+            "up_left-17-blink-2.png",
+            "up_left-17-blink-3.png",
+            "up_left-17-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-17.png",
+          "file": "up_left-18.png",
           "sourceBounds": [
             1284,
             561,
@@ -4172,14 +4203,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-17-blink-1.png",
-            "up_left-generated-17-blink-2.png",
-            "up_left-generated-17-blink-3.png",
-            "up_left-generated-17-blink-4.png"
+            "up_left-18-blink-1.png",
+            "up_left-18-blink-2.png",
+            "up_left-18-blink-3.png",
+            "up_left-18-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-18.png",
+          "file": "up_left-19.png",
           "sourceBounds": [
             85,
             785,
@@ -4203,14 +4234,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-18-blink-1.png",
-            "up_left-generated-18-blink-2.png",
-            "up_left-generated-18-blink-3.png",
-            "up_left-generated-18-blink-4.png"
+            "up_left-19-blink-1.png",
+            "up_left-19-blink-2.png",
+            "up_left-19-blink-3.png",
+            "up_left-19-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-19.png",
+          "file": "up_left-20.png",
           "sourceBounds": [
             326,
             789,
@@ -4234,14 +4265,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-19-blink-1.png",
-            "up_left-generated-19-blink-2.png",
-            "up_left-generated-19-blink-3.png",
-            "up_left-generated-19-blink-4.png"
+            "up_left-20-blink-1.png",
+            "up_left-20-blink-2.png",
+            "up_left-20-blink-3.png",
+            "up_left-20-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-20.png",
+          "file": "up_left-21.png",
           "sourceBounds": [
             567,
             792,
@@ -4265,14 +4296,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-20-blink-1.png",
-            "up_left-generated-20-blink-2.png",
-            "up_left-generated-20-blink-3.png",
-            "up_left-generated-20-blink-4.png"
+            "up_left-21-blink-1.png",
+            "up_left-21-blink-2.png",
+            "up_left-21-blink-3.png",
+            "up_left-21-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-21.png",
+          "file": "up_left-22.png",
           "sourceBounds": [
             807,
             795,
@@ -4296,14 +4327,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-21-blink-1.png",
-            "up_left-generated-21-blink-2.png",
-            "up_left-generated-21-blink-3.png",
-            "up_left-generated-21-blink-4.png"
+            "up_left-22-blink-1.png",
+            "up_left-22-blink-2.png",
+            "up_left-22-blink-3.png",
+            "up_left-22-blink-4.png"
           ]
         },
         {
-          "file": "up_left-generated-22.png",
+          "file": "up_left-23.png",
           "sourceBounds": [
             1047,
             799,
@@ -4327,41 +4358,10 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "up_left-generated-22-blink-1.png",
-            "up_left-generated-22-blink-2.png",
-            "up_left-generated-22-blink-3.png",
-            "up_left-generated-22-blink-4.png"
-          ]
-        },
-        {
-          "file": "up_left-generated-23.png",
-          "sourceBounds": [
-            1287,
-            803,
-            1454,
-            930
-          ],
-          "uniformScale": 1.251908396946565,
-          "eyes": [
-            [
-              66,
-              77,
-              84,
-              97
-            ],
-            [
-              100,
-              81,
-              123,
-              105
-            ]
-          ],
-          "blinkMaskState": "visible",
-          "blinks": [
-            "up_left-generated-23-blink-1.png",
-            "up_left-generated-23-blink-2.png",
-            "up_left-generated-23-blink-3.png",
-            "up_left-generated-23-blink-4.png"
+            "up_left-23-blink-1.png",
+            "up_left-23-blink-2.png",
+            "up_left-23-blink-3.png",
+            "up_left-23-blink-4.png"
           ]
         }
       ],
@@ -4381,7 +4381,7 @@
       "count": 24,
       "frames": [
         {
-          "file": "down_right-generated-00.png",
+          "file": "down_right-00.png",
           "sourceBounds": [
             64,
             65,
@@ -4405,14 +4405,76 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-00-blink-1.png",
-            "down_right-generated-00-blink-2.png",
-            "down_right-generated-00-blink-3.png",
-            "down_right-generated-00-blink-4.png"
+            "down_right-00-blink-1.png",
+            "down_right-00-blink-2.png",
+            "down_right-00-blink-3.png",
+            "down_right-00-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-01.png",
+          "file": "down_right-01.png",
+          "sourceBounds": [
+            305,
+            68,
+            509,
+            233
+          ],
+          "uniformScale": 0.9704142011834319,
+          "eyes": [
+            [
+              96,
+              125,
+              110,
+              151
+            ],
+            [
+              136,
+              125,
+              150,
+              151
+            ]
+          ],
+          "blinkMaskState": "visible",
+          "blinks": [
+            "down_right-01-blink-1.png",
+            "down_right-01-blink-2.png",
+            "down_right-01-blink-3.png",
+            "down_right-01-blink-4.png"
+          ]
+        },
+        {
+          "file": "down_right-02.png",
+          "sourceBounds": [
+            305,
+            68,
+            509,
+            233
+          ],
+          "uniformScale": 0.9704142011834319,
+          "eyes": [
+            [
+              98,
+              126,
+              114,
+              152
+            ],
+            [
+              138,
+              126,
+              154,
+              152
+            ]
+          ],
+          "blinkMaskState": "visible",
+          "blinks": [
+            "down_right-02-blink-1.png",
+            "down_right-02-blink-2.png",
+            "down_right-02-blink-3.png",
+            "down_right-02-blink-4.png"
+          ]
+        },
+        {
+          "file": "down_right-03.png",
           "sourceBounds": [
             305,
             68,
@@ -4436,14 +4498,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-01-blink-1.png",
-            "down_right-generated-01-blink-2.png",
-            "down_right-generated-01-blink-3.png",
-            "down_right-generated-01-blink-4.png"
+            "down_right-03-blink-1.png",
+            "down_right-03-blink-2.png",
+            "down_right-03-blink-3.png",
+            "down_right-03-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-02.png",
+          "file": "down_right-04.png",
           "sourceBounds": [
             551,
             70,
@@ -4467,14 +4529,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-02-blink-1.png",
-            "down_right-generated-02-blink-2.png",
-            "down_right-generated-02-blink-3.png",
-            "down_right-generated-02-blink-4.png"
+            "down_right-04-blink-1.png",
+            "down_right-04-blink-2.png",
+            "down_right-04-blink-3.png",
+            "down_right-04-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-03.png",
+          "file": "down_right-05.png",
           "sourceBounds": [
             794,
             73,
@@ -4498,14 +4560,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-03-blink-1.png",
-            "down_right-generated-03-blink-2.png",
-            "down_right-generated-03-blink-3.png",
-            "down_right-generated-03-blink-4.png"
+            "down_right-05-blink-1.png",
+            "down_right-05-blink-2.png",
+            "down_right-05-blink-3.png",
+            "down_right-05-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-04.png",
+          "file": "down_right-06.png",
           "sourceBounds": [
             1037,
             77,
@@ -4529,14 +4591,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-04-blink-1.png",
-            "down_right-generated-04-blink-2.png",
-            "down_right-generated-04-blink-3.png",
-            "down_right-generated-04-blink-4.png"
+            "down_right-06-blink-1.png",
+            "down_right-06-blink-2.png",
+            "down_right-06-blink-3.png",
+            "down_right-06-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-05.png",
+          "file": "down_right-07.png",
           "sourceBounds": [
             1280,
             83,
@@ -4560,14 +4622,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-05-blink-1.png",
-            "down_right-generated-05-blink-2.png",
-            "down_right-generated-05-blink-3.png",
-            "down_right-generated-05-blink-4.png"
+            "down_right-07-blink-1.png",
+            "down_right-07-blink-2.png",
+            "down_right-07-blink-3.png",
+            "down_right-07-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-06.png",
+          "file": "down_right-08.png",
           "sourceBounds": [
             62,
             297,
@@ -4591,14 +4653,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-06-blink-1.png",
-            "down_right-generated-06-blink-2.png",
-            "down_right-generated-06-blink-3.png",
-            "down_right-generated-06-blink-4.png"
+            "down_right-08-blink-1.png",
+            "down_right-08-blink-2.png",
+            "down_right-08-blink-3.png",
+            "down_right-08-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-07.png",
+          "file": "down_right-09.png",
           "sourceBounds": [
             308,
             302,
@@ -4622,14 +4684,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-07-blink-1.png",
-            "down_right-generated-07-blink-2.png",
-            "down_right-generated-07-blink-3.png",
-            "down_right-generated-07-blink-4.png"
+            "down_right-09-blink-1.png",
+            "down_right-09-blink-2.png",
+            "down_right-09-blink-3.png",
+            "down_right-09-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-08.png",
+          "file": "down_right-10.png",
           "sourceBounds": [
             553,
             307,
@@ -4653,14 +4715,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-08-blink-1.png",
-            "down_right-generated-08-blink-2.png",
-            "down_right-generated-08-blink-3.png",
-            "down_right-generated-08-blink-4.png"
+            "down_right-10-blink-1.png",
+            "down_right-10-blink-2.png",
+            "down_right-10-blink-3.png",
+            "down_right-10-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-09.png",
+          "file": "down_right-11.png",
           "sourceBounds": [
             798,
             311,
@@ -4684,14 +4746,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-09-blink-1.png",
-            "down_right-generated-09-blink-2.png",
-            "down_right-generated-09-blink-3.png",
-            "down_right-generated-09-blink-4.png"
+            "down_right-11-blink-1.png",
+            "down_right-11-blink-2.png",
+            "down_right-11-blink-3.png",
+            "down_right-11-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-10.png",
+          "file": "down_right-12.png",
           "sourceBounds": [
             1043,
             316,
@@ -4715,14 +4777,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-10-blink-1.png",
-            "down_right-generated-10-blink-2.png",
-            "down_right-generated-10-blink-3.png",
-            "down_right-generated-10-blink-4.png"
+            "down_right-12-blink-1.png",
+            "down_right-12-blink-2.png",
+            "down_right-12-blink-3.png",
+            "down_right-12-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-11.png",
+          "file": "down_right-13.png",
           "sourceBounds": [
             1289,
             322,
@@ -4746,14 +4808,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-11-blink-1.png",
-            "down_right-generated-11-blink-2.png",
-            "down_right-generated-11-blink-3.png",
-            "down_right-generated-11-blink-4.png"
+            "down_right-13-blink-1.png",
+            "down_right-13-blink-2.png",
+            "down_right-13-blink-3.png",
+            "down_right-13-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-12.png",
+          "file": "down_right-14.png",
           "sourceBounds": [
             71,
             539,
@@ -4777,14 +4839,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-12-blink-1.png",
-            "down_right-generated-12-blink-2.png",
-            "down_right-generated-12-blink-3.png",
-            "down_right-generated-12-blink-4.png"
+            "down_right-14-blink-1.png",
+            "down_right-14-blink-2.png",
+            "down_right-14-blink-3.png",
+            "down_right-14-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-13.png",
+          "file": "down_right-15.png",
           "sourceBounds": [
             320,
             542,
@@ -4808,14 +4870,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-13-blink-1.png",
-            "down_right-generated-13-blink-2.png",
-            "down_right-generated-13-blink-3.png",
-            "down_right-generated-13-blink-4.png"
+            "down_right-15-blink-1.png",
+            "down_right-15-blink-2.png",
+            "down_right-15-blink-3.png",
+            "down_right-15-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-14.png",
+          "file": "down_right-16.png",
           "sourceBounds": [
             564,
             547,
@@ -4839,14 +4901,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-14-blink-1.png",
-            "down_right-generated-14-blink-2.png",
-            "down_right-generated-14-blink-3.png",
-            "down_right-generated-14-blink-4.png"
+            "down_right-16-blink-1.png",
+            "down_right-16-blink-2.png",
+            "down_right-16-blink-3.png",
+            "down_right-16-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-15.png",
+          "file": "down_right-17.png",
           "sourceBounds": [
             807,
             552,
@@ -4870,14 +4932,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-15-blink-1.png",
-            "down_right-generated-15-blink-2.png",
-            "down_right-generated-15-blink-3.png",
-            "down_right-generated-15-blink-4.png"
+            "down_right-17-blink-1.png",
+            "down_right-17-blink-2.png",
+            "down_right-17-blink-3.png",
+            "down_right-17-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-16.png",
+          "file": "down_right-18.png",
           "sourceBounds": [
             1048,
             558,
@@ -4901,14 +4963,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-16-blink-1.png",
-            "down_right-generated-16-blink-2.png",
-            "down_right-generated-16-blink-3.png",
-            "down_right-generated-16-blink-4.png"
+            "down_right-18-blink-1.png",
+            "down_right-18-blink-2.png",
+            "down_right-18-blink-3.png",
+            "down_right-18-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-17.png",
+          "file": "down_right-19.png",
           "sourceBounds": [
             1289,
             564,
@@ -4932,14 +4994,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-17-blink-1.png",
-            "down_right-generated-17-blink-2.png",
-            "down_right-generated-17-blink-3.png",
-            "down_right-generated-17-blink-4.png"
+            "down_right-19-blink-1.png",
+            "down_right-19-blink-2.png",
+            "down_right-19-blink-3.png",
+            "down_right-19-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-18.png",
+          "file": "down_right-20.png",
           "sourceBounds": [
             78,
             773,
@@ -4963,14 +5025,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-18-blink-1.png",
-            "down_right-generated-18-blink-2.png",
-            "down_right-generated-18-blink-3.png",
-            "down_right-generated-18-blink-4.png"
+            "down_right-20-blink-1.png",
+            "down_right-20-blink-2.png",
+            "down_right-20-blink-3.png",
+            "down_right-20-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-19.png",
+          "file": "down_right-21.png",
           "sourceBounds": [
             322,
             778,
@@ -4994,14 +5056,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-19-blink-1.png",
-            "down_right-generated-19-blink-2.png",
-            "down_right-generated-19-blink-3.png",
-            "down_right-generated-19-blink-4.png"
+            "down_right-21-blink-1.png",
+            "down_right-21-blink-2.png",
+            "down_right-21-blink-3.png",
+            "down_right-21-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-20.png",
+          "file": "down_right-22.png",
           "sourceBounds": [
             566,
             783,
@@ -5025,14 +5087,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-20-blink-1.png",
-            "down_right-generated-20-blink-2.png",
-            "down_right-generated-20-blink-3.png",
-            "down_right-generated-20-blink-4.png"
+            "down_right-22-blink-1.png",
+            "down_right-22-blink-2.png",
+            "down_right-22-blink-3.png",
+            "down_right-22-blink-4.png"
           ]
         },
         {
-          "file": "down_right-generated-21.png",
+          "file": "down_right-23.png",
           "sourceBounds": [
             807,
             787,
@@ -5056,66 +5118,10 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_right-generated-21-blink-1.png",
-            "down_right-generated-21-blink-2.png",
-            "down_right-generated-21-blink-3.png",
-            "down_right-generated-21-blink-4.png"
-          ]
-        },
-        {
-          "file": "down_right-generated-22.png",
-          "sourceBounds": [
-            1047,
-            793,
-            1193,
-            934
-          ],
-          "uniformScale": 1.1310344827586207,
-          "eyes": [
-            [
-              175,
-              141,
-              185,
-              159
-            ],
-            [
-              190,
-              127,
-              194,
-              142
-            ]
-          ],
-          "blinkMaskState": "visible",
-          "blinks": [
-            "down_right-generated-22-blink-1.png",
-            "down_right-generated-22-blink-2.png",
-            "down_right-generated-22-blink-3.png",
-            "down_right-generated-22-blink-4.png"
-          ]
-        },
-        {
-          "file": "down_right-generated-23.png",
-          "sourceBounds": [
-            1289,
-            799,
-            1433,
-            938
-          ],
-          "uniformScale": 1.1468531468531469,
-          "eyes": [
-            [
-              177,
-              140,
-              186,
-              157
-            ]
-          ],
-          "blinkMaskState": "visible",
-          "blinks": [
-            "down_right-generated-23-blink-1.png",
-            "down_right-generated-23-blink-2.png",
-            "down_right-generated-23-blink-3.png",
-            "down_right-generated-23-blink-4.png"
+            "down_right-23-blink-1.png",
+            "down_right-23-blink-2.png",
+            "down_right-23-blink-3.png",
+            "down_right-23-blink-4.png"
           ]
         }
       ],
@@ -5135,7 +5141,7 @@
       "count": 24,
       "frames": [
         {
-          "file": "down_left-generated-00.png",
+          "file": "down_left-00.png",
           "sourceBounds": [
             59,
             51,
@@ -5159,14 +5165,45 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-00-blink-1.png",
-            "down_left-generated-00-blink-2.png",
-            "down_left-generated-00-blink-3.png",
-            "down_left-generated-00-blink-4.png"
+            "down_left-00-blink-1.png",
+            "down_left-00-blink-2.png",
+            "down_left-00-blink-3.png",
+            "down_left-00-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-01.png",
+          "file": "down_left-01.png",
+          "sourceBounds": [
+            307,
+            54,
+            509,
+            216
+          ],
+          "uniformScale": 0.9879518072289156,
+          "eyes": [
+            [
+              92,
+              125,
+              107,
+              151
+            ],
+            [
+              132,
+              125,
+              147,
+              151
+            ]
+          ],
+          "blinkMaskState": "visible",
+          "blinks": [
+            "down_left-01-blink-1.png",
+            "down_left-01-blink-2.png",
+            "down_left-01-blink-3.png",
+            "down_left-01-blink-4.png"
+          ]
+        },
+        {
+          "file": "down_left-02.png",
           "sourceBounds": [
             307,
             54,
@@ -5190,14 +5227,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-01-blink-1.png",
-            "down_left-generated-01-blink-2.png",
-            "down_left-generated-01-blink-3.png",
-            "down_left-generated-01-blink-4.png"
+            "down_left-02-blink-1.png",
+            "down_left-02-blink-2.png",
+            "down_left-02-blink-3.png",
+            "down_left-02-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-02.png",
+          "file": "down_left-03.png",
           "sourceBounds": [
             554,
             55,
@@ -5221,14 +5258,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-02-blink-1.png",
-            "down_left-generated-02-blink-2.png",
-            "down_left-generated-02-blink-3.png",
-            "down_left-generated-02-blink-4.png"
+            "down_left-03-blink-1.png",
+            "down_left-03-blink-2.png",
+            "down_left-03-blink-3.png",
+            "down_left-03-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-03.png",
+          "file": "down_left-04.png",
           "sourceBounds": [
             799,
             57,
@@ -5252,14 +5289,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-03-blink-1.png",
-            "down_left-generated-03-blink-2.png",
-            "down_left-generated-03-blink-3.png",
-            "down_left-generated-03-blink-4.png"
+            "down_left-04-blink-1.png",
+            "down_left-04-blink-2.png",
+            "down_left-04-blink-3.png",
+            "down_left-04-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-04.png",
+          "file": "down_left-05.png",
           "sourceBounds": [
             1048,
             59,
@@ -5283,14 +5320,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-04-blink-1.png",
-            "down_left-generated-04-blink-2.png",
-            "down_left-generated-04-blink-3.png",
-            "down_left-generated-04-blink-4.png"
+            "down_left-05-blink-1.png",
+            "down_left-05-blink-2.png",
+            "down_left-05-blink-3.png",
+            "down_left-05-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-05.png",
+          "file": "down_left-06.png",
           "sourceBounds": [
             1299,
             60,
@@ -5314,14 +5351,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-05-blink-1.png",
-            "down_left-generated-05-blink-2.png",
-            "down_left-generated-05-blink-3.png",
-            "down_left-generated-05-blink-4.png"
+            "down_left-06-blink-1.png",
+            "down_left-06-blink-2.png",
+            "down_left-06-blink-3.png",
+            "down_left-06-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-06.png",
+          "file": "down_left-07.png",
           "sourceBounds": [
             81,
             289,
@@ -5345,14 +5382,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-06-blink-1.png",
-            "down_left-generated-06-blink-2.png",
-            "down_left-generated-06-blink-3.png",
-            "down_left-generated-06-blink-4.png"
+            "down_left-07-blink-1.png",
+            "down_left-07-blink-2.png",
+            "down_left-07-blink-3.png",
+            "down_left-07-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-07.png",
+          "file": "down_left-08.png",
           "sourceBounds": [
             334,
             291,
@@ -5376,14 +5413,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-07-blink-1.png",
-            "down_left-generated-07-blink-2.png",
-            "down_left-generated-07-blink-3.png",
-            "down_left-generated-07-blink-4.png"
+            "down_left-08-blink-1.png",
+            "down_left-08-blink-2.png",
+            "down_left-08-blink-3.png",
+            "down_left-08-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-08.png",
+          "file": "down_left-09.png",
           "sourceBounds": [
             580,
             293,
@@ -5407,14 +5444,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-08-blink-1.png",
-            "down_left-generated-08-blink-2.png",
-            "down_left-generated-08-blink-3.png",
-            "down_left-generated-08-blink-4.png"
+            "down_left-09-blink-1.png",
+            "down_left-09-blink-2.png",
+            "down_left-09-blink-3.png",
+            "down_left-09-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-09.png",
+          "file": "down_left-10.png",
           "sourceBounds": [
             825,
             293,
@@ -5438,14 +5475,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-09-blink-1.png",
-            "down_left-generated-09-blink-2.png",
-            "down_left-generated-09-blink-3.png",
-            "down_left-generated-09-blink-4.png"
+            "down_left-10-blink-1.png",
+            "down_left-10-blink-2.png",
+            "down_left-10-blink-3.png",
+            "down_left-10-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-10.png",
+          "file": "down_left-11.png",
           "sourceBounds": [
             1070,
             294,
@@ -5469,14 +5506,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-10-blink-1.png",
-            "down_left-generated-10-blink-2.png",
-            "down_left-generated-10-blink-3.png",
-            "down_left-generated-10-blink-4.png"
+            "down_left-11-blink-1.png",
+            "down_left-11-blink-2.png",
+            "down_left-11-blink-3.png",
+            "down_left-11-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-11.png",
+          "file": "down_left-12.png",
           "sourceBounds": [
             1315,
             296,
@@ -5500,14 +5537,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-11-blink-1.png",
-            "down_left-generated-11-blink-2.png",
-            "down_left-generated-11-blink-3.png",
-            "down_left-generated-11-blink-4.png"
+            "down_left-12-blink-1.png",
+            "down_left-12-blink-2.png",
+            "down_left-12-blink-3.png",
+            "down_left-12-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-12.png",
+          "file": "down_left-13.png",
           "sourceBounds": [
             90,
             520,
@@ -5531,14 +5568,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-12-blink-1.png",
-            "down_left-generated-12-blink-2.png",
-            "down_left-generated-12-blink-3.png",
-            "down_left-generated-12-blink-4.png"
+            "down_left-13-blink-1.png",
+            "down_left-13-blink-2.png",
+            "down_left-13-blink-3.png",
+            "down_left-13-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-13.png",
+          "file": "down_left-14.png",
           "sourceBounds": [
             338,
             521,
@@ -5562,14 +5599,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-13-blink-1.png",
-            "down_left-generated-13-blink-2.png",
-            "down_left-generated-13-blink-3.png",
-            "down_left-generated-13-blink-4.png"
+            "down_left-14-blink-1.png",
+            "down_left-14-blink-2.png",
+            "down_left-14-blink-3.png",
+            "down_left-14-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-14.png",
+          "file": "down_left-15.png",
           "sourceBounds": [
             583,
             523,
@@ -5593,14 +5630,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-14-blink-1.png",
-            "down_left-generated-14-blink-2.png",
-            "down_left-generated-14-blink-3.png",
-            "down_left-generated-14-blink-4.png"
+            "down_left-15-blink-1.png",
+            "down_left-15-blink-2.png",
+            "down_left-15-blink-3.png",
+            "down_left-15-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-15.png",
+          "file": "down_left-16.png",
           "sourceBounds": [
             827,
             524,
@@ -5624,14 +5661,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-15-blink-1.png",
-            "down_left-generated-15-blink-2.png",
-            "down_left-generated-15-blink-3.png",
-            "down_left-generated-15-blink-4.png"
+            "down_left-16-blink-1.png",
+            "down_left-16-blink-2.png",
+            "down_left-16-blink-3.png",
+            "down_left-16-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-16.png",
+          "file": "down_left-17.png",
           "sourceBounds": [
             1073,
             525,
@@ -5655,14 +5692,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-16-blink-1.png",
-            "down_left-generated-16-blink-2.png",
-            "down_left-generated-16-blink-3.png",
-            "down_left-generated-16-blink-4.png"
+            "down_left-17-blink-1.png",
+            "down_left-17-blink-2.png",
+            "down_left-17-blink-3.png",
+            "down_left-17-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-17.png",
+          "file": "down_left-18.png",
           "sourceBounds": [
             1317,
             528,
@@ -5686,14 +5723,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-17-blink-1.png",
-            "down_left-generated-17-blink-2.png",
-            "down_left-generated-17-blink-3.png",
-            "down_left-generated-17-blink-4.png"
+            "down_left-18-blink-1.png",
+            "down_left-18-blink-2.png",
+            "down_left-18-blink-3.png",
+            "down_left-18-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-18.png",
+          "file": "down_left-19.png",
           "sourceBounds": [
             91,
             750,
@@ -5717,14 +5754,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-18-blink-1.png",
-            "down_left-generated-18-blink-2.png",
-            "down_left-generated-18-blink-3.png",
-            "down_left-generated-18-blink-4.png"
+            "down_left-19-blink-1.png",
+            "down_left-19-blink-2.png",
+            "down_left-19-blink-3.png",
+            "down_left-19-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-19.png",
+          "file": "down_left-20.png",
           "sourceBounds": [
             338,
             752,
@@ -5748,14 +5785,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-19-blink-1.png",
-            "down_left-generated-19-blink-2.png",
-            "down_left-generated-19-blink-3.png",
-            "down_left-generated-19-blink-4.png"
+            "down_left-20-blink-1.png",
+            "down_left-20-blink-2.png",
+            "down_left-20-blink-3.png",
+            "down_left-20-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-20.png",
+          "file": "down_left-21.png",
           "sourceBounds": [
             582,
             754,
@@ -5779,14 +5816,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-20-blink-1.png",
-            "down_left-generated-20-blink-2.png",
-            "down_left-generated-20-blink-3.png",
-            "down_left-generated-20-blink-4.png"
+            "down_left-21-blink-1.png",
+            "down_left-21-blink-2.png",
+            "down_left-21-blink-3.png",
+            "down_left-21-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-21.png",
+          "file": "down_left-22.png",
           "sourceBounds": [
             827,
             756,
@@ -5810,14 +5847,14 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-21-blink-1.png",
-            "down_left-generated-21-blink-2.png",
-            "down_left-generated-21-blink-3.png",
-            "down_left-generated-21-blink-4.png"
+            "down_left-22-blink-1.png",
+            "down_left-22-blink-2.png",
+            "down_left-22-blink-3.png",
+            "down_left-22-blink-4.png"
           ]
         },
         {
-          "file": "down_left-generated-22.png",
+          "file": "down_left-23.png",
           "sourceBounds": [
             1073,
             757,
@@ -5841,35 +5878,10 @@
           ],
           "blinkMaskState": "visible",
           "blinks": [
-            "down_left-generated-22-blink-1.png",
-            "down_left-generated-22-blink-2.png",
-            "down_left-generated-22-blink-3.png",
-            "down_left-generated-22-blink-4.png"
-          ]
-        },
-        {
-          "file": "down_left-generated-23.png",
-          "sourceBounds": [
-            1316,
-            760,
-            1476,
-            915
-          ],
-          "uniformScale": 1.0314465408805031,
-          "eyes": [
-            [
-              56,
-              138,
-              66,
-              159
-            ]
-          ],
-          "blinkMaskState": "visible",
-          "blinks": [
-            "down_left-generated-23-blink-1.png",
-            "down_left-generated-23-blink-2.png",
-            "down_left-generated-23-blink-3.png",
-            "down_left-generated-23-blink-4.png"
+            "down_left-23-blink-1.png",
+            "down_left-23-blink-2.png",
+            "down_left-23-blink-3.png",
+            "down_left-23-blink-4.png"
           ]
         }
       ],

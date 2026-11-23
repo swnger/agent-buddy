@@ -31,6 +31,7 @@ class SpriteMotion {
   void setCycle(bool value);
   void setBlinks(bool value);
   void setEased(bool value) { eased_ = value; }
+  void setSoftEase(bool value) { softEase_ = value; edgeCache_.target = 0; }
   bool setDuration(double value);
   bool setSpeed(double value);
   // Fixed FIFO: invalid directions/full queues return false without dropping work.
@@ -78,6 +79,7 @@ class SpriteMotion {
   bool automatic_ = true;
   bool cycling_ = false;
   bool eased_ = true;
+  bool softEase_ = false;
   bool blinks_ = true;
   bool blinkQueued_ = false;
   bool doublePending_ = false;

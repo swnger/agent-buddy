@@ -118,7 +118,7 @@ void SpriteMotion::startTurn() {
 
 double SpriteMotion::edgeDuration() {
   const int travelled = phase_ == Phase::Out ? pose_.index : target_ - pose_.index;
-  const bool eased = eased_ && pose_.direction != 0;
+  const bool eased = eased_ && (softEase_ || pose_.direction != 0);
   if (edgeCache_.target == target_ && edgeCache_.travelled == travelled
       && edgeCache_.eased == eased && edgeCache_.duration == duration_) {
     return edgeCache_.interval;
@@ -126,8 +126,10 @@ double SpriteMotion::edgeDuration() {
   const double before = static_cast<double>(travelled) / target_;
   const double after = static_cast<double>(travelled + 1) / target_;
   const double turnDuration = duration_ * std::sqrt(static_cast<double>(target_) / (count_ - 1));
-  const double interval = turnDuration
+  double interval = turnDuration
       * (eased ? inverseQuintic(after) - inverseQuintic(before) : after - before);
+  // Keep quintic's snappy mid-turn pace (~42 ms) while capping the endpoint freeze (~323 ms -> 115 ms).
+  if (eased && softEase_) interval = std::min(interval, 0.115);
   edgeCache_ = {duration_, interval, target_, static_cast<uint8_t>(travelled), eased};
   return interval;
 }
@@ -189,7 +191,7 @@ void SpriteMotion::update(double deltaSeconds) {
   else --pose_.index;
   if (pose_.index == target_ && phase_ == Phase::Out) {
     phase_ = Phase::Endpoint;
-    hold_ = pose_.direction == 0 ? .001 : cycling_ ? .6 : range(.35, 1.4);
+    hold_ = (!softEase_ && pose_.direction == 0) ? .001 : cycling_ ? .6 : range(.35, 1.4);
   } else if (pose_.index == 0 && phase_ == Phase::Return) {
     phase_ = Phase::Center;
     hold_ = cycling_ ? .6 : range(.35, 1.6);

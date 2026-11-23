@@ -588,6 +588,77 @@ static void benchmarkEffects() {
   std::cout << "Effects object: " << sizeof(CharacterEffects) << " bytes\n";
 }
 
+static void peekUpcomingTransitionsAndHolds() {
+  // Idle returning to center for a pending Working switch peeks track 9 right after the return.
+  {
+    CharacterMotion motion(42, 13);
+    until(motion, [](const auto& s) { return s.mode == Mode::Idle && s.pose.index >= 5; });
+    const uint8_t idleDir = motion.state().pose.direction;
+    const uint8_t idleIdx = motion.state().pose.index;
+    assert(motion.setMode(Mode::Working));
+    SpritePose upcoming[32];
+    const size_t n = motion.peekUpcoming(upcoming, 32);
+    assert(n > idleIdx);
+    assert(upcoming[0].direction == idleDir && upcoming[0].index == idleIdx - 1);
+    bool sawWorkingEntry = false;
+    for (size_t i = 0; i < n; ++i) {
+      if (upcoming[i].direction == 9 && upcoming[i].index == 1) {
+        sawWorkingEntry = true;
+        break;
+      }
+    }
+    assert(sawWorkingEntry);
+  }
+  // Attention Hold and AttentionBack peek the alternate attention track (11 <-> 12).
+  {
+    CharacterMotion motion(27, 13);
+    assert(motion.setMode(Mode::Attention));
+    until(motion, [](const auto& s) { return s.mode == Mode::Attention && s.pose.direction == 11 && s.pose.index == 23; });
+    SpritePose upcoming[48];
+    const size_t n = motion.peekUpcoming(upcoming, 48);
+    assert(n >= 24);
+    assert(upcoming[0].direction == 11 && upcoming[0].index == 22);
+    bool sawAlt = false;
+    for (size_t i = 0; i < n; ++i) {
+      if (upcoming[i].direction == 12 && upcoming[i].index == 1) {
+        sawAlt = true;
+        break;
+      }
+    }
+    assert(sawAlt);
+  }
+  // Working Hold predicts the exact deterministic next look-away direction and target.
+  {
+    CharacterMotion motion(27, 13);
+    assert(motion.setMode(Mode::Working));
+    until(motion, [](const auto& s) { return s.mode == Mode::Working && s.pose.direction == 9 && s.pose.index == 23; });
+    SpritePose upcoming[48];
+    const size_t n = motion.peekUpcoming(upcoming, 48);
+    uint8_t predictedLookDir = 255;
+    uint8_t predictedLookMax = 0;
+    for (size_t i = 0; i < n; ++i) {
+      if (upcoming[i].direction < 2) {
+        if (predictedLookDir == 255) predictedLookDir = upcoming[i].direction;
+        if (upcoming[i].direction == predictedLookDir && upcoming[i].index > predictedLookMax)
+          predictedLookMax = upcoming[i].index;
+      }
+    }
+    assert(predictedLookDir < 2 && predictedLookMax >= 8 && predictedLookMax <= 13);
+    until(motion, [](const auto& s) { return s.mode == Mode::Working && s.pose.direction < 2 && s.pose.index > 0; });
+    assert(motion.state().pose.direction == predictedLookDir);
+    // During look-away, peekUpcoming includes returning to track 9.
+    const size_t nLook = motion.peekUpcoming(upcoming, 48);
+    bool sawTrack9 = false;
+    for (size_t i = 0; i < nLook; ++i) {
+      if (upcoming[i].direction == 9 && upcoming[i].index == 1) {
+        sawTrack9 = true;
+        break;
+      }
+    }
+    assert(sawTrack9);
+  }
+}
+
 int main(int argc, char**) {
   if (argc > 1) { benchmarkEffects(); return 0; }
   idleParityAndCentering();
@@ -600,6 +671,7 @@ int main(int argc, char**) {
   springSurprise();
   effectRestoration();
   agentBadgeLayoutAndRestoration();
+  peekUpcomingTransitionsAndHolds();
   std::cout << "Character tests passed: idle parity; center-only handoffs; all modes/interruptions; "
                "sleep cycle; pause/stalls; allocation-free updates; dual-buffer effects/canaries/body preservation; agent badges\n";
 }

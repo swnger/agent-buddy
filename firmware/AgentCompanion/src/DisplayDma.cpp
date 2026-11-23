@@ -114,13 +114,19 @@ bool DisplayDma::submit(size_t bytes) {
 
 bool DisplayDma::finish() {
   if (!active_) return error_ == nullptr;
+  bool ok = error_ == nullptr;
   while (pending_) {
-    if (!wait()) return false;
+    if (!wait()) {
+      ok = false;
+      break;
+    }
   }
-  if (gpio_set_level(static_cast<gpio_num_t>(scanout_.csPin), 1) != ESP_OK)
-    error_ = "Display DMA chip deselection failed.";
+  if (gpio_set_level(static_cast<gpio_num_t>(scanout_.csPin), 1) != ESP_OK) {
+    if (!error_) error_ = "Display DMA chip deselection failed.";
+    ok = false;
+  }
   spi_device_release_bus(device_);
   active_ = false;
-  return error_ == nullptr;
+  return ok && error_ == nullptr;
 }
 }

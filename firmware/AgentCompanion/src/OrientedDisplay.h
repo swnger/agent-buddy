@@ -14,7 +14,8 @@ class OrientedDisplay : public Arduino_Canvas {
                   void (*setBrightness)(uint8_t));
   bool begin(int32_t speed = GFX_NOT_DEFINED) override;
   void flush(bool forceFlush = false) override;
-  bool flushFrame(const uint16_t* pixels, int x, int y, int width, int height);
+  bool flushFrame(const uint16_t* pixels, int x, int y, int width, int height,
+                  const uint32_t* tileMask = nullptr, int tileRows = 0);
   bool setAngle(float radians);
   bool setTrim(float radians);
   float angle() const { return ScreenOrientation::shortestAngle(orientation_.angle() + trim_); }
@@ -27,7 +28,6 @@ class OrientedDisplay : public Arduino_Canvas {
  private:
   bool flushSource(const ScreenPixels& source);
   board::DisplayPanel* panel_;
-  Arduino_DataBus* bus_;
   void (*setBrightness_)(uint8_t);
   uint8_t* transferBuffer_ = nullptr;
   size_t transferBytes_ = 0;
