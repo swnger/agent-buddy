@@ -89,6 +89,16 @@ bool SpriteMotion::returnToCenter(double duration) {
   return true;
 }
 
+bool SpriteMotion::peekNextTurn(uint8_t& direction, uint8_t& depth) const {
+  if (!valid() || !playing_ || phase_ != Phase::Center || (!queueSize_ && !cycling_ && !automatic_))
+    return false;
+  SpriteMotion preview = *this;
+  preview.startTurn();
+  direction = preview.pose_.direction;
+  depth = preview.target_;
+  return true;
+}
+
 void SpriteMotion::startTurn() {
   uint8_t direction;
   double depth = 1;

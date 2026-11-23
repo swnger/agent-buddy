@@ -143,6 +143,10 @@ size_t CharacterMotion::peekUpcoming(SpritePose* out, size_t maxCount) const {
       if (cur.index < idle_.target()) appendRange(cur.direction, cur.index + 1, idle_.target());
     } else if (phase == SpriteMotion::Phase::Return || phase == SpriteMotion::Phase::Endpoint) {
       if (cur.index > 1) appendRange(cur.direction, cur.index - 1, 1);
+    } else if (mode_ == CharacterMode::Idle && next_ == mode_) {
+      // The center dwell gives the decoder a head start before the first moving frame.
+      uint8_t direction, depth;
+      if (idle_.peekNextTurn(direction, depth)) appendRange(direction, 1, depth);
     }
     if (next_ != mode_) appendModeEntry(next_);
     return count;

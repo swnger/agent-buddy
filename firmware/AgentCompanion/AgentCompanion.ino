@@ -73,7 +73,6 @@ struct PatchInflateContext {
 PatchInflateContext* patchInflateCtx = nullptr;
 uint32_t inflateTimeUs = 0, predictTimeUs = 0;
 uint32_t prefetchCommits = 0, prefetchAborts = 0, coldHeldFrames = 0;
-std::atomic<int64_t> nextFreeFrameUs{0};
 constexpr size_t kTransferBytes = 16 * 1024;
 static_assert(kCharacterUploadChunkBytes <= kTransferBytes,
               "Character upload chunks are staged in the display transfer buffer.");
@@ -130,17 +129,14 @@ bool updateOrientation() {
   return true;
 }
 
-constexpr int kFrameTileRows = (kCharacterFrameHeight + 15) / 16;
-
 struct Frame {
   uint16_t* pixels = nullptr;
   int64_t presentedUs = 0;
   uint32_t renderUs = 0, motionUs = 0, decodeUs = 0, compositeUs = 0, eyesUs = 0, effectsUs = 0,
       inflateUs = 0, predictUs = 0, scaleUs = 0;
-  uint32_t tileMask[kFrameTileRows]{};
-  bool hasTileMask = false;
+  FrameCoverage coverage;
+  FrameCoverage::Tiles changes;
   CharacterState state;
-  SpritePose renderedPose;
 };
 Frame frames[2];
 
@@ -178,6 +174,9 @@ void* allocate(size_t bytes, uint32_t capabilities, const char* error) {
 
 // Incremental resumable background pose prefetch state (owned exclusively by the render task).
 constexpr size_t kPrefetchInputBytes = 2048;
+// The render task alternates between inflating and composing. Both operations share
+// this internal buffer to stream external memory in contiguous bursts.
+alignas(4) uint16_t poseStaging[kPrefetchInputBytes / sizeof(uint16_t)];
 struct PrefetchState {
   bool active = false;
   uint8_t direction = 0;
@@ -192,6 +191,7 @@ struct PrefetchState {
   uint8_t carryByte = 0;
   bool overflow = false;
 } prefetch;
+SpritePose lastPrefetched;
 
 void onPrefetchRow(void* opaque, size_t y, const uint16_t* swappedRow, int begin, int end) {
   auto* p = static_cast<PrefetchState*>(opaque);
@@ -224,10 +224,10 @@ void abortPrefetch() {
   ++prefetchAborts;
 }
 
-bool startPrefetch(uint8_t direction, uint8_t index) {
+bool startPrefetch(uint8_t direction, uint8_t index, uint64_t keep = 0) {
   if (prefetch.active || !patchRenderer || characterScaler) return false;
   SpriteRenderer::PrefetchTarget target;
-  if (!patchRenderer->preparePrefetch(direction, index, target)) return false;
+  if (!patchRenderer->preparePrefetch(direction, index, target, keep)) return false;
   const uint8_t* src = spriteBlock(target.block);
   if (!src || !spritePredictor.resetRows(target.baseWidth, target.baseHeight, onPrefetchRow, &prefetch)) {
     patchRenderer->cancelPrefetch(target);
@@ -267,28 +267,27 @@ bool feedPrefetchBytes(const uint8_t* data, size_t bytes) {
   return true;
 }
 
-// Advances the active prefetch by one input-sliced tinfl step (~1.2-1.7 ms).
-// Returns true if still in progress. Sets `committed` when the pose completes and commits.
-bool stepPrefetchChunk(bool* committed = nullptr) {
-  if (committed) *committed = false;
-  if (!prefetch.active) return false;
+// Limit each inflate call so a newly available frame or command can interrupt background work.
+void stepPrefetchChunk() {
+  if (!prefetch.active) return;
   const size_t remainingIn = prefetch.inputSize - prefetch.consumed;
   size_t inBytes = std::min(kPrefetchInputBytes, remainingIn);
   const uint32_t flags = TINFL_FLAG_PARSE_ZLIB_HEADER
       | (prefetch.consumed + inBytes < prefetch.inputSize ? TINFL_FLAG_HAS_MORE_INPUT : 0);
   // Wrapping mode requires (pOut_buf_next - pOut_buf_start) + outBytes to equal the 32 KB dictionary.
   size_t outBytes = sizeof(inflateHistory) - prefetch.dictPos;
-  const auto status = tinfl_decompress(&inflater, prefetch.input + prefetch.consumed, &inBytes,
+  std::memcpy(poseStaging, prefetch.input + prefetch.consumed, inBytes);
+  const auto status = tinfl_decompress(&inflater, reinterpret_cast<const uint8_t*>(poseStaging), &inBytes,
       inflateHistory, inflateHistory + prefetch.dictPos, &outBytes, flags);
   prefetch.consumed += inBytes;
   if (status < TINFL_STATUS_DONE) {
     abortPrefetch();
-    return false;
+    return;
   }
   if (outBytes) {
     if (!feedPrefetchBytes(inflateHistory + prefetch.dictPos, outBytes) || prefetch.overflow) {
       abortPrefetch();
-      return false;
+      return;
     }
     prefetch.dictPos = (prefetch.dictPos + outBytes) & (sizeof(inflateHistory) - 1);
   }
@@ -297,18 +296,17 @@ bool stepPrefetchChunk(bool* committed = nullptr) {
       patchRenderer->commitPrefetch(prefetch.target, prefetch.writtenPixels);
       prefetch.active = false;
       ++prefetchCommits;
-      if (committed) *committed = true;
+      lastPrefetched = {prefetch.direction, prefetch.index, 0, 0};
     } else {
       abortPrefetch();
     }
-    return false;
+    return;
   }
   if ((status != TINFL_STATUS_NEEDS_MORE_INPUT && status != TINFL_STATUS_HAS_MORE_OUTPUT)
       || (inBytes == 0 && outBytes == 0)) {
     abortPrefetch();
-    return false;
+    return;
   }
-  return true;
 }
 
 // Inflates a block through spritePredictor, which the caller has reset for its output.
@@ -376,23 +374,30 @@ bool inflatePose(uint8_t* output, size_t outputSize, const uint8_t* input, size_
   return true;
 }
 
+// A decode may complete between render calls. Only show it if it advances the visible
+// pose along the current motion leg (including a wrap of a pack-defined walk cycle).
+bool onPosePath(const PackHeader& pack, const SpritePose& last, uint8_t direction, uint8_t target,
+                uint8_t candidateDirection, uint8_t candidate) {
+  if (candidateDirection != direction) return false;
+  if (candidate == target) return true;
+  if (direction != last.direction) return candidate < target && direction != pack.walkDirection;
+  if (direction == pack.walkDirection) {
+    const int steps = pack.walkFrames;
+    const int toTarget = (target - last.index + steps) % steps;
+    const int toCandidate = (candidate - last.index + steps) % steps;
+    return toCandidate > 0 && toCandidate < toTarget;
+  }
+  return target > last.index ? candidate > last.index && candidate < target
+                             : candidate < last.index && candidate > target;
+}
+
 bool prefetchHelpsTarget(const PackHeader& pack, const SpritePose& lastBase,
                          uint8_t desiredDir, uint8_t desiredIdx) {
   if (!prefetch.active) return false;
   SpriteBlock needed{};
-  if (patchRenderer->poseBaseBlock(desiredDir, desiredIdx, needed)
-      && needed.offset == prefetch.target.block.offset
-      && needed.size == prefetch.target.block.size) {
-    return true;
-  }
-  if (prefetch.direction != desiredDir) return false;
-  if (desiredDir == pack.walkDirection) return true;
-  if (lastBase.direction == desiredDir) {
-    if (desiredIdx >= lastBase.index)
-      return prefetch.index > lastBase.index && prefetch.index <= desiredIdx;
-    return prefetch.index < lastBase.index && prefetch.index >= desiredIdx;
-  }
-  return prefetch.index <= desiredIdx;
+  return (patchRenderer->poseBaseBlock(desiredDir, desiredIdx, needed)
+          && needed.offset == prefetch.target.block.offset && needed.size == prefetch.target.block.size)
+      || onPosePath(pack, lastBase, desiredDir, desiredIdx, prefetch.direction, prefetch.index);
 }
 
 void animate(void*) {
@@ -406,6 +411,7 @@ void animate(void*) {
   int64_t previous = esp_timer_get_time();
   int64_t effectsReserveUs = 2000;
   int64_t compositeReserveUs = 5000;
+  const Frame* preceding = nullptr;
   SpritePose lastRenderedBase{0, 0, 0, 0};
   if (patchRenderer && !characterScaler && !fullFrame) patchRenderer->pinPose(0, 0);
   for (;;) {
@@ -441,6 +447,7 @@ void animate(void*) {
     CharacterState drawn = frame->state;
     if (!upToDate) drawn = artState;
     artInflated = false;
+    SpritePose renderedPose = drawn.pose;
     bool rendered = false;
     uint8_t postDesiredDir = drawn.pose.direction;
     uint8_t postDesiredIdx = drawn.pose.index;
@@ -471,31 +478,22 @@ void animate(void*) {
         const int64_t preBudgetUs = std::clamp<int64_t>(
             11500 - effectsReserveUs - compositeReserveUs, 2000, 6500);
         const int64_t preBudgetEnd = start + preBudgetUs;
-        bool committedThisFrame = false;
-        uint8_t committedDir = 0, committedIdx = 0;
-        while (prefetch.active && esp_timer_get_time() < preBudgetEnd) {
-          const uint8_t pDir = prefetch.direction, pIdx = prefetch.index;
-          bool committed = false;
-          stepPrefetchChunk(&committed);
-          if (committed) {
-            committedThisFrame = true;
-            committedDir = pDir;
-            committedIdx = pIdx;
-          }
-        }
+        while (prefetch.active && esp_timer_get_time() < preBudgetEnd) stepPrefetchChunk();
         if (isWarm(desiredDir, desiredIdx)) {
           rendered = patchRenderer->render(renderPose, frame->pixels);
           if (rendered) {
             lastRenderedBase = {desiredDir, desiredIdx, 0, 0};
             patchRenderer->pinPose(desiredDir, desiredIdx);
           }
-        } else if (committedThisFrame && committedDir == desiredDir && isWarm(committedDir, committedIdx)) {
-          renderPose.direction = committedDir;
-          renderPose.index = committedIdx;
+        } else if (onPosePath(pack, lastRenderedBase, desiredDir, desiredIdx,
+                              lastPrefetched.direction, lastPrefetched.index)
+                   && isWarm(lastPrefetched.direction, lastPrefetched.index)) {
+          renderPose.direction = lastPrefetched.direction;
+          renderPose.index = lastPrefetched.index;
           rendered = patchRenderer->render(renderPose, frame->pixels);
           if (rendered) {
-            lastRenderedBase = {committedDir, committedIdx, 0, 0};
-            patchRenderer->pinPose(committedDir, committedIdx);
+            lastRenderedBase = lastPrefetched;
+            patchRenderer->pinPose(renderPose.direction, renderPose.index);
           }
           ++coldHeldFrames;
         } else if (isWarm(lastRenderedBase.direction, lastRenderedBase.index)) {
@@ -512,21 +510,32 @@ void animate(void*) {
           }
         }
       }
-      frame->renderedPose = renderPose;
+      renderedPose = renderPose;
+      if (rendered && !frame->coverage.shows(renderPose)) {
+        const auto& eyes = patchRenderer->eyes;
+        frame->coverage.setEyes(eyes.x, eyes.y, eyes.width, eyes.height);
+        frame->coverage.art.fill(0);
+        patchRenderer->fillTileMask(frame->pixels, frame->coverage.art.data(), frame->coverage.art.size());
+      }
     } else {
-      rendered = sprite.render(drawn, characterTarget(*frame));
-      frame->renderedPose = drawn.pose;
+      renderedPose.index = walkIndex(pack, drawn.pose.direction, drawn.pose.index, drawn.effectSeconds);
+      // restore() has already removed this buffer's effects. A held full-frame pose is
+      // already complete here, including its open/closed-eye blend and black margins.
+      rendered = (fullFrame && frame->coverage.shows(renderedPose))
+              || sprite.render(drawn, characterTarget(*frame));
     }
+    if (!rendered) fatal(sprite.error());
     artState = drawn;
     portENTER_CRITICAL(&renderLock);
     renderActive = false;
     portEXIT_CRITICAL(&renderLock);
-    if (!rendered) fatal(sprite.error());
     const size_t pendingPixels = characterScaler ? characterScaler->pendingPixels(index) : 0;
     const bool wait = artInflated
         && esp_timer_get_time() + static_cast<int64_t>(pendingPixels * scaleUsPerArtPixel) > deadline;
     const int64_t scaleStart = esp_timer_get_time();
     scaleCharacter(*frame, wait);
+    // A deferred scale leaves the previous image in this particular framebuffer.
+    if (!wait) frame->coverage.pose = renderedPose;
     frame->scaleUs = esp_timer_get_time() - scaleStart;
     // The costliest recent pixel, from scales big enough that it isn't their fixed cost.
     if (!wait && pendingPixels >= 4096)
@@ -535,17 +544,16 @@ void animate(void*) {
     if (!effects->render(frame->state, frame->pixels)) fatal(effects->error());
     frame->effectsUs = restoreUs + esp_timer_get_time() - effectStart;
     effectsReserveUs = std::max<int64_t>(frame->effectsUs, effectsReserveUs * 15 / 16);
-    if (patchRenderer && !characterScaler && !fullFrame) {
-      if (patchRenderer->compositeUs > 0) {
-        compositeReserveUs = std::max<int64_t>(patchRenderer->compositeUs, compositeReserveUs * 15 / 16);
-      }
-      std::memset(frame->tileMask, 0, sizeof(frame->tileMask));
-      patchRenderer->fillTileMask(frame->pixels, frame->tileMask, kFrameTileRows);
-      effects->markTiles(frame->pixels, frame->tileMask, kFrameTileRows);
-      frame->hasTileMask = true;
+    if (patchRenderer && !characterScaler && patchRenderer->compositeUs > 0)
+      compositeReserveUs = std::max<int64_t>(patchRenderer->compositeUs, compositeReserveUs * 15 / 16);
+    frame->coverage.effects.fill(0);
+    effects->markTiles(frame->pixels, frame->coverage.effects.data(), frame->coverage.effects.size());
+    if (preceding && preceding != frame) {
+      frame->changes = frame->coverage.changesFrom(preceding->coverage, frame->pixels, preceding->pixels);
     } else {
-      frame->hasTileMask = false;
+      frame->changes.fill(UINT32_MAX);
     }
+    preceding = frame;
     frame->renderUs = esp_timer_get_time() - start;
     frame->decodeUs = fullFrame ? 0 : patchRenderer->decodeUs;
     frame->compositeUs = fullFrame ? 0 : patchRenderer->compositeUs;
@@ -559,10 +567,18 @@ void animate(void*) {
     if (patchRenderer && !characterScaler && !fullFrame
         && uxQueueMessagesWaiting(freeFrames) == 0
         && uxQueueMessagesWaiting(commands) == 0) {
-      const int64_t freeAt = nextFreeFrameUs.load(std::memory_order_relaxed);
-      const int64_t budgetEnd = (freeAt > start)
-          ? std::min(freeAt - 2000, start + 24000)
-          : (start + 14500);
+      // A small display update may finish long before the next presentation. Use that
+      // slack too, yielding at chunk boundaries as soon as a buffer or command arrives.
+      const int64_t budgetEnd = start + 1000000 / kTargetFps;
+      if (lastRenderedBase.direction != postDesiredDir || lastRenderedBase.index != postDesiredIdx) {
+        // This frame is already queued. If its target will have moved by the next refresh,
+        // use the remaining decode time on the next requested pose instead of chasing a stale one.
+        CharacterMotion preview = motion;
+        stepCharacterMotion(preview, 1.0 / kTargetFps, pack);
+        const CharacterState next = preview.state();
+        postDesiredDir = next.pose.direction;
+        postDesiredIdx = walkIndex(pack, postDesiredDir, next.pose.index, next.effectSeconds);
+      }
       while (esp_timer_get_time() < budgetEnd
              && uxQueueMessagesWaiting(freeFrames) == 0
              && uxQueueMessagesWaiting(commands) == 0) {
@@ -573,39 +589,26 @@ void animate(void*) {
         if (stop) vTaskSuspend(nullptr);
         bool didWork = false;
         if (!prefetch.active) {
-          // If this frame held an older pose while an intermediate pose finished, decode the
-          // current desired pose next before looking further ahead.
+          // A missed pose takes priority over longer-range predictions.
           if (!patchRenderer->hasCachedPose(postDesiredDir, postDesiredIdx)) {
             startPrefetch(postDesiredDir, postDesiredIdx);
           }
         }
         if (!prefetch.active) {
-          SpritePose upcoming[24];
-          const size_t count = motion.peekUpcoming(upcoming, 24);
-          // For walk-cycle packs, expand walkDirection entries to their cyclic frames.
-          auto resolveDirIdx = [&](const SpritePose& p, uint8_t& d, uint8_t& idx) {
-            d = p.direction;
-            idx = p.index;
-            if (d == pack.walkDirection && pack.walkFrames > 0) {
-              idx = static_cast<uint8_t>(pack.walkFirst + (idx % pack.walkFrames));
-            }
-          };
+          SpritePose upcoming[48];
+          size_t count = motion.peekUpcoming(upcoming, 24);
+          // During a dwell, use spare capacity for the fast middle of expression entries.
+          // Interleave tracks and alternate steps so a new command can fill the gaps in time.
+          for (uint8_t idx = 5; idx <= 15; idx += 2)
+            for (uint8_t dir = 8; dir <= 11; ++dir) upcoming[count++] = {dir, idx, 0, 0};
+          uint64_t keep = 0;
           for (size_t i = 0; i < count; ++i) {
-            uint8_t d = 0, idx = 0;
-            resolveDirIdx(upcoming[i], d, idx);
-            if (patchRenderer->hasCachedPose(d, idx)) continue;
-            // Skip speculative prefetch if reserving it would evict an earlier upcoming pose.
-            bool evictsEarlier = false;
-            for (size_t j = 0; j < i; ++j) {
-              uint8_t ed = 0, eidx = 0;
-              resolveDirIdx(upcoming[j], ed, eidx);
-              if (patchRenderer->wouldEvictPose(ed, eidx)) {
-                evictsEarlier = true;
-                break;
-              }
-            }
-            if (evictsEarlier) break;
-            if (startPrefetch(d, idx)) break;
+            const uint8_t d = upcoming[i].direction;
+            const uint8_t idx = d == pack.walkDirection
+                ? pack.walkFirst + upcoming[i].index % pack.walkFrames : upcoming[i].index;
+            if (patchRenderer->hasCachedPose(d, idx, &keep)) continue;
+            startPrefetch(d, idx, keep);
+            break;
           }
         }
         if (prefetch.active) {
@@ -657,8 +660,8 @@ bool captureFrame(const Frame& frame) {
       "CAPTURE_STATE mode=%u requested=%u seconds=%.9g event=%u\n"
       "CAPTURE_CHARACTER %s\n"
       "FRAME_BE %d %d %u\n",
-      static_cast<unsigned>(frame.renderedPose.direction), static_cast<unsigned>(frame.renderedPose.index),
-      static_cast<unsigned>(frame.renderedPose.blinkLevel), static_cast<unsigned>(frame.state.mode),
+      static_cast<unsigned>(frame.coverage.pose.direction), static_cast<unsigned>(frame.coverage.pose.index),
+      static_cast<unsigned>(frame.coverage.pose.blinkLevel), static_cast<unsigned>(frame.state.mode),
       static_cast<unsigned>(frame.state.requestedMode), frame.state.effectSeconds, frame.state.eventId,
       characterPack() ? characterPack()->header.id : "none",
       kCharacterFrameWidth, kCharacterFrameHeight, static_cast<unsigned>(bytes));
@@ -1716,7 +1719,7 @@ void startCharacter() {
       auto* rowSpans = static_cast<SpriteRenderer::RowSpan*>(heap_caps_malloc(spansBytes, kPsramCaps));
       if (rowSpans) {
         patchRenderer->setBaseCache(basePool, poolBytes / sizeof(uint16_t), rowSpans, kCacheSlots,
-                                    nullptr, 0, inflateBaseRows);
+                                    poseStaging, sizeof(poseStaging) / sizeof(*poseStaging), inflateBaseRows);
         logMessage("BASE_CACHE slots=%u pool_bytes=%u free_psram=%u\n",
                    static_cast<unsigned>(kCacheSlots), static_cast<unsigned>(poolBytes),
                    static_cast<unsigned>(ESP.getFreePsram()));
@@ -1728,8 +1731,15 @@ void startCharacter() {
   // Warm both frame caches before starting the presentation clock and brightness fade.
   CharacterSprite sprite(patchRenderer, fullFrameRenderer);
   for (auto& frame : frames) {
-    if (!sprite.render(CharacterState{}, characterTarget(frame))) fatal(sprite.error());
+    const CharacterState initial{};
+    if (!sprite.render(initial, characterTarget(frame))) fatal(sprite.error());
     scaleCharacter(frame);
+    frame.coverage.pose = initial.pose;
+    frame.coverage.pose.index = walkIndex(pack, initial.pose.direction, initial.pose.index, initial.effectSeconds);
+    if (patchRenderer && !characterScaler)
+      patchRenderer->fillTileMask(frame.pixels, frame.coverage.art.data(), frame.coverage.art.size());
+    else
+      frame.coverage.art.fill(UINT32_MAX);
   }
   if (xTaskCreatePinnedToCore(animate, "copilot-render", 16384, nullptr, 1,
                               &renderTask, 0) != pdPASS) fatal("Render task creation failed.");
@@ -1857,7 +1867,6 @@ void loop() {
   static uint32_t previousEvent = UINT32_MAX;
   static CharacterMode previousMode = CharacterMode::Idle;
   static uint32_t networkRevision = UINT32_MAX;
-  static int64_t avgTransferUs = 16667;
   if (restartAt) {
     network.update();
     if (elapsed(millis(), restartAt)) ESP.restart();
@@ -1892,15 +1901,10 @@ void loop() {
   previousPresentation = start;
   uint32_t transferUs = 0;
   if (!settings.isOpen() && !prompt) {
-    nextFreeFrameUs.store(start + avgTransferUs, std::memory_order_relaxed);
-    if (!display.flushFrame(
-            frame->pixels, kCharacterFrameX, 0, kCharacterFrameWidth, kCharacterFrameHeight,
-            frame->hasTileMask ? frame->tileMask : nullptr, frame->hasTileMask ? kFrameTileRows : 0))
+    if (!display.flushAnimation(frame->pixels, frame->coverage, frame->changes))
       fatal(display.error());
     transferUs = esp_timer_get_time() - start;
-    avgTransferUs = (avgTransferUs * 7 + static_cast<int64_t>(transferUs)) / 8;
   } else {
-    nextFreeFrameUs.store(0, std::memory_order_relaxed);
     if (orientationChanged) flushDisplay();
     transferUs = esp_timer_get_time() - start;
   }
@@ -1964,8 +1968,8 @@ void loop() {
                     static_cast<unsigned>(heap_caps_get_largest_free_block(internalCaps)), ESP.getFreePsram(),
                     static_cast<unsigned>(uxTaskGetStackHighWaterMark(renderTask)),
                     static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
-      logMessage("POSE direction=%u frame=%u blink=%u\n", static_cast<unsigned>(timing.renderedPose.direction),
-                    static_cast<unsigned>(timing.renderedPose.index), static_cast<unsigned>(timing.renderedPose.blinkLevel));
+      logMessage("POSE direction=%u frame=%u blink=%u\n", static_cast<unsigned>(timing.coverage.pose.direction),
+                    static_cast<unsigned>(timing.coverage.pose.index), static_cast<unsigned>(timing.coverage.pose.blinkLevel));
     }
     frameCount = maxRender = 0;
     minGap = UINT32_MAX;

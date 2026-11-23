@@ -29,16 +29,21 @@ class StubPanel {
   bool started = false;
   unsigned marginClears = 0;
   Rect window{};
+  std::vector<Rect> windows, clears;
   bool begin(int32_t) { return true; }
   void startWrite() { assert(!started); started = true; }
   void endWrite() { assert(started); started = false; }
   void writeAddrWindow(int x, int y, int width, int height) {
     assert(started);
     window = {x, y, width, height};
+    windows.push_back(window);
   }
-  void fillRect(int, int, int width, int height, uint16_t color) {
+  void fillRect(int x, int y, int width, int height, uint16_t color) {
     assert(!started && color == 0);
-    if (width > 0 && height > 0) ++marginClears;
+    if (width > 0 && height > 0) {
+      ++marginClears;
+      clears.push_back({x, y, width, height});
+    }
   }
 };
 class Arduino_CO5300 : public StubPanel {};

@@ -67,20 +67,49 @@ class ScreenTransform {
 
   bool renderRows(const ScreenPixels& source, int firstRow, int rows,
                   uint16_t* output, size_t capacity) const {
+    return renderWindow(source, 0, firstRow, width_, rows, output, capacity);
+  }
+
+  bool renderWindow(const ScreenPixels& source, int left, int firstRow, int columns, int rows,
+                    uint16_t* output, size_t capacity) const {
     if (!valid_ || !source.pixels || !output || source.x < 0 || source.y < 0
         || source.width <= 0 || source.height <= 0
         || source.x >= content_ || source.y >= content_
         || source.width > content_ - source.x || source.height > content_ - source.y
         || firstRow < 0 || firstRow >= height_ || rows <= 0 || rows > height_ - firstRow
-        || capacity < static_cast<size_t>(width_) * rows) return false;
+        || left < 0 || left >= width_ || columns <= 0 || columns > width_ - left
+        || capacity < static_cast<size_t>(columns) * rows) return false;
     if (source.order == Rgb565Order::Display) {
-      if (box_) render<true, true>(source, firstRow, rows, output);
-      else render<true, false>(source, firstRow, rows, output);
+      if (box_) render<true, true>(source, left, firstRow, columns, rows, output);
+      else render<true, false>(source, left, firstRow, columns, rows, output);
     } else {
-      if (box_) render<false, true>(source, firstRow, rows, output);
-      else render<false, false>(source, firstRow, rows, output);
+      if (box_) render<false, true>(source, left, firstRow, columns, rows, output);
+      else render<false, false>(source, left, firstRow, columns, rows, output);
     }
     return true;
+  }
+
+  // Source-local 16px tiles sampled by this panel rectangle. The extrema of the affine
+  // inverse are at its corners. Include the second tap of the LCD's box filter.
+  struct TileRange { uint8_t left, right, top, bottom; };  // half-open
+  TileRange sampledTiles(const ScreenPixels& source, int x, int y, int w, int h) const {
+    int32_t sx, sy;
+    inverse(x, y, sx, sy);
+    const int round = box_ ? 0 : kHalf;
+    sx += round - source.x * kOne;
+    sy += round - source.y * kOne;
+    const int dx = (w - 1) * cosine_, dy = (h - 1) * sine_;
+    const int ex = -(w - 1) * sine_, ey = (h - 1) * cosine_;
+    auto range = [&](int start, int along, int down, int limit, uint8_t& first, uint8_t& end) {
+      const int low = (start + std::min(0, along) + std::min(0, down)) >> 16;
+      const int high = (start + std::max(0, along) + std::max(0, down)) >> 16;
+      first = static_cast<uint8_t>(std::clamp(low, 0, limit) / 16);
+      end = static_cast<uint8_t>((std::clamp(high + 1 + box_, 0, limit) + 15) / 16);
+    };
+    TileRange result;
+    range(sx, dx, dy, source.width, result.left, result.right);
+    range(sy, ex, ey, source.height, result.top, result.bottom);
+    return result;
   }
 
  private:
@@ -151,6 +180,27 @@ class ScreenTransform {
     }
   }
 
+  // All scanout formats use the same circular panel boundary.
+  struct CircleSpan { int16_t left, right; };
+  static const CircleSpan* circleSpans(int width) {
+    static int cachedWidth = 0;
+    static CircleSpan spans[512];
+    if (width != cachedWidth) {
+      const float center = (width - 1) * .5f;
+      const float radius = width * .5f + 1.5f;
+      for (int row = 0; row < width; ++row) {
+        const float dy = row - center;
+        const float half = std::sqrt(radius * radius - dy * dy);
+        spans[row] = {
+          static_cast<int16_t>(std::max(0, static_cast<int>(std::floor(center - half)))),
+          static_cast<int16_t>(std::min(width, static_cast<int>(std::ceil(center + half)) + 1))
+        };
+      }
+      cachedWidth = width;
+    }
+    return spans;
+  }
+
   // Box: the panel is smaller than the content. Each panel pixel then averages the 2x2 block whose
   // top-left pixel is under its center, and pixels whose block leaves the source stay black.
   template<bool DisplayOrder, bool Box>
@@ -158,19 +208,24 @@ class ScreenTransform {
   // Speed-optimize scanout without changing the firmware's size-optimized build.
   __attribute__((optimize("O3")))
 #endif
-  void render(const ScreenPixels& source, int firstRow, int rows, uint16_t* output) const {
+  void render(const ScreenPixels& source, int left, int firstRow, int columns, int rows,
+              uint16_t* output) const {
     if (!Box && cosine_ == kOne && sine_ == 0) {
       // Upright at full size: each panel pixel shows the content pixel a whole number of pixels away,
       // as the general path below rounds it.
-      const int shiftX = (contentCenter_ - panelCenterX_ + kHalf) >> 16;
+      const int shiftX = left + ((contentCenter_ - panelCenterX_ + kHalf) >> 16);
       const int shiftY = (contentCenter_ - panelCenterY_ + kHalf) >> 16;
       // The source's columns on the panel, clipped to it.
       const int first = std::max(source.x - shiftX, 0);
-      const int last = std::min(source.x + source.width - shiftX, width_);
-      for (int row = firstRow; row < firstRow + rows; ++row, output += width_) {
-        std::fill(output, output + width_, 0);
+      const int last = std::min(source.x + source.width - shiftX, columns);
+      for (int row = firstRow; row < firstRow + rows; ++row, output += columns) {
         const int contentRow = row + shiftY;
-        if (first >= last || contentRow < source.y || contentRow >= source.y + source.height) continue;
+        if (first >= last || contentRow < source.y || contentRow >= source.y + source.height) {
+          std::fill_n(output, columns, 0);
+          continue;
+        }
+        std::fill(output, output + first, 0);
+        std::fill(output + last, output + columns, 0);
         const uint16_t* input = source.pixels + (contentRow - source.y) * source.width
                                 + (first + shiftX - source.x);
         if constexpr (DisplayOrder) {
@@ -188,45 +243,41 @@ class ScreenTransform {
     constexpr int kReach = Box ? 1 : 0;
     const int width = source.width, height = source.height;
     const uint16_t* pixels = source.pixels;
-    // Precompute circular bounds once per panel width (avoids per-row sqrt in scanout).
-    static int cachedCircleWidth = 0;
-    static int16_t circleLeft[512];
-    static int16_t circleRight[512];
-    const bool useCircleLut = circular_ && width_ <= 512;
-    if (useCircleLut && cachedCircleWidth != width_) {
-      const float center = (width_ - 1) * 0.5f;
-      const float radiusSq = (width_ * 0.5f + 1.5f) * (width_ * 0.5f + 1.5f);
-      for (int r = 0; r < width_; ++r) {
-        const float dy = static_cast<float>(r) - center;
-        const float remain = radiusSq - dy * dy;
-        if (remain <= 0.0f) {
-          circleLeft[r] = 0;
-          circleRight[r] = 0;
-        } else {
-          const float halfChord = std::sqrt(remain);
-          circleLeft[r] = static_cast<int16_t>(std::max(0, static_cast<int>(std::floor(center - halfChord))));
-          circleRight[r] = static_cast<int16_t>(std::min(width_, static_cast<int>(std::ceil(center + halfChord)) + 1));
-        }
-      }
-      cachedCircleWidth = width_;
-    }
+    const auto* circle = circular_ && width_ <= 512 ? circleSpans(width_) : nullptr;
+    // A full panel-pixel step is exact in this fixed-point transform. Compute the inverse
+    // once per DMA batch, then advance by (sine, cosine) for each successive output row.
+    int32_t originX, originY;
+    inverse(left, firstRow, originX, originY);
+    originX += kRound - source.x * kOne;
+    originY += kRound - source.y * kOne;
+    auto inside = [&](int32_t start, int32_t dx, int32_t dy, int limit) {
+      const int64_t along = int64_t(columns - 1) * dx;
+      const int64_t down = int64_t(rows - 1) * dy;
+      return start + std::min<int64_t>(0, along) + std::min<int64_t>(0, down) >= 0
+          && start + std::max<int64_t>(0, along) + std::max<int64_t>(0, down) < int64_t(limit) * kOne;
+    };
+    // Most animation windows lie entirely inside the character frame. Their four corners
+    // bound every sample, including the extra LCD filter tap, so no row needs source clipping.
+    const bool interior = inside(originX, cosine_, sine_, width - kReach)
+                       && inside(originY, -sine_, cosine_, height - kReach);
     // Nearby output rows reuse source cache lines, including near a quarter turn.
     for (int row = firstRow; row < firstRow + rows; row += kTileRows) {
       const int tileRows = std::min(kTileRows, firstRow + rows - row);
       int32_t rowX[kTileRows], rowY[kTileRows];
       int first[kTileRows], last[kTileRows];
-      int minFirst = width_, maxLast = 0;
+      int minFirst = columns, maxLast = 0;
       for (int y = 0; y < tileRows; ++y) {
-        inverse(0, row + y, rowX[y], rowY[y]);
-        rowX[y] += kRound - source.x * kOne;
-        rowY[y] += kRound - source.y * kOne;
-        int begin = 0, end = width_;
-        if (useCircleLut) {
-          begin = circleLeft[row + y];
-          end = circleRight[row + y];
+        rowX[y] = originX + (row + y - firstRow) * sine_;
+        rowY[y] = originY + (row + y - firstRow) * cosine_;
+        int begin = 0, end = columns;
+        if (circle) {
+          begin = std::max(0, circle[row + y].left - left);
+          end = std::min(columns, circle[row + y].right - left);
         }
-        clipSpan(rowX[y], cosine_, (width - kReach) * kOne, begin, end);
-        clipSpan(rowY[y], -sine_, (height - kReach) * kOne, begin, end);
+        if (!interior) {
+          clipSpan(rowX[y], cosine_, (width - kReach) * kOne, begin, end);
+          clipSpan(rowY[y], -sine_, (height - kReach) * kOne, begin, end);
+        }
         first[y] = begin < end ? begin : 0;
         last[y] = begin < end ? end : 0;
         if (first[y] < last[y]) {
@@ -235,19 +286,19 @@ class ScreenTransform {
         }
         rowX[y] += first[y] * cosine_;
         rowY[y] -= first[y] * sine_;
-        uint16_t* destination = output + (row + y - firstRow) * width_;
+        uint16_t* destination = output + (row + y - firstRow) * columns;
         std::fill(destination, destination + first[y], 0);
-        std::fill(destination + last[y], destination + width_, 0);
+        std::fill(destination + last[y], destination + columns, 0);
       }
       if (minFirst >= maxLast) continue;
       for (int column = minFirst & ~(kTileColumns - 1); column < maxLast; column += kTileColumns) {
-        const int columns = std::min(kTileColumns, maxLast - column);
+        const int tileEnd = std::min(column + kTileColumns, maxLast);
         if constexpr (!Box) {
           if (source.tileMask && source.tileRows > 0 && width <= 512) {
             int minSx = width, maxSx = -1, minSy = height, maxSy = -1;
             for (int y = 0; y < tileRows; ++y) {
               const int begin = std::max(column, first[y]);
-              const int end = std::min(column + columns, last[y]);
+              const int end = std::min(tileEnd, last[y]);
               if (begin >= end) continue;
               const int span = end - 1 - begin;
               const int x0 = rowX[y] >> 16;
@@ -272,10 +323,10 @@ class ScreenTransform {
               if ((occupied & colMask) == 0u) {
                 for (int y = 0; y < tileRows; ++y) {
                   const int begin = std::max(column, first[y]);
-                  const int end = std::min(column + columns, last[y]);
+                  const int end = std::min(tileEnd, last[y]);
                   if (begin >= end) continue;
                   const int count = end - begin;
-                  std::memset(output + (row + y - firstRow) * width_ + begin, 0,
+                  std::memset(output + (row + y - firstRow) * columns + begin, 0,
                               static_cast<size_t>(count) * sizeof(uint16_t));
                   rowX[y] += count * cosine_;
                   rowY[y] -= count * sine_;
@@ -287,10 +338,10 @@ class ScreenTransform {
         }
         for (int y = 0; y < tileRows; ++y) {
           const int begin = std::max(column, first[y]);
-          const int end = std::min(column + columns, last[y]);
+          const int end = std::min(tileEnd, last[y]);
           if (begin >= end) continue;
           int32_t sourceX = rowX[y], sourceY = rowY[y];
-          uint16_t* destination = output + (row + y - firstRow) * width_ + begin;
+          uint16_t* destination = output + (row + y - firstRow) * columns + begin;
           for (int x = begin; x < end; ++x) {
             const uint16_t* pixel = pixels + (sourceY >> 16) * width + (sourceX >> 16);
             if constexpr (Box)

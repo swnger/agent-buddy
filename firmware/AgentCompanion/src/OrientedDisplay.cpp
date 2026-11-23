@@ -45,6 +45,7 @@ bool OrientedDisplay::setTransferBuffer(uint8_t* buffer, size_t bytes) {
 
 bool OrientedDisplay::setAngle(float radians) {
   if (!orientation_.update(radians)) return false;
+  hasShown_ = false;
   frameMarginsDirty_ = true;
   return true;
 }
@@ -52,12 +53,14 @@ bool OrientedDisplay::setAngle(float radians) {
 bool OrientedDisplay::setTrim(float radians) {
   if (!std::isfinite(radians) || radians == trim_) return false;
   trim_ = radians;
+  hasShown_ = false;
   frameMarginsDirty_ = true;
   return true;
 }
 
 void OrientedDisplay::flush(bool forceFlush) {
   (void)forceFlush;
+  hasShown_ = false;
   frameMarginsDirty_ = true;
   flushSource({_framebuffer, 0, 0, kDisplaySize, kDisplaySize, Rgb565Order::Native});
 }
@@ -65,7 +68,82 @@ void OrientedDisplay::flush(bool forceFlush) {
 bool OrientedDisplay::flushFrame(
     const uint16_t* pixels, int x, int y, int width, int height,
     const uint32_t* tileMask, int tileRows) {
+  hasShown_ = false;
   return flushSource({pixels, x, y, width, height, Rgb565Order::Display, tileMask, tileRows});
+}
+
+bool OrientedDisplay::flushAnimation(const uint16_t* pixels, const FrameCoverage& coverage,
+                                     const FrameCoverage::Tiles& changes) {
+  ScreenPixels source{pixels, kCharacterFrameX, 0, kCharacterFrameWidth,
+                      kCharacterFrameHeight, Rgb565Order::Display};
+  // A menu, a new orientation, or an interrupted transfer needs a complete first image.
+  // Full-frame and scaled poses may change every tile. Use the normal streaming DMA then.
+  if (!hasShown_ || !pixels || std::all_of(changes.begin(), changes.end(),
+                                          [](uint32_t row) { return row == UINT32_MAX; })) {
+    FrameCoverage::Tiles occupied;
+    for (size_t y = 0; y < occupied.size(); ++y) occupied[y] = coverage.art[y] | coverage.effects[y];
+    if (!std::all_of(occupied.begin(), occupied.end(), [](uint32_t row) { return row == UINT32_MAX; })) {
+      source.tileMask = occupied.data();
+      source.tileRows = occupied.size();
+    }
+    if (!hasShown_) samplesValid_ = false;
+    hasShown_ = flushSource(source);
+    return hasShown_;
+  }
+
+  error_ = nullptr;
+  composeUs_ = writeUs_ = 0;
+  uint32_t any = 0;
+  for (uint32_t row : changes) any |= row;
+  if (!any) return true;
+  const ScreenTransform transform(kPanelWidth, kPanelHeight, kDisplaySize, kShownContentSize,
+                                  angle(), kRoundPanel);
+  if (!samplesValid_) {
+    for (int ty = 0; ty < kTileRows; ++ty)
+      for (int tx = 0; tx < kTileColumns; ++tx)
+        samples_[ty][tx] = transform.sampledTiles(source, tx * 16, ty * 16,
+            std::min(16, kPanelWidth - tx * 16), std::min(16, kPanelHeight - ty * 16));
+    samplesValid_ = true;
+  }
+
+  // Gather runs in 64px-high bands. Keeping broad windows lets DMA overlap composition;
+  // a collection of tall, narrow slivers around a rotated head stalls both cores.
+  constexpr int bandRows = 4;
+  for (int top = 0; top < kTileRows; top += bandRows) {
+    const int count = std::min(bandRows, kTileRows - top);
+    uint32_t rows[bandRows]{}, band = 0;
+    for (int r = 0; r < count; ++r) {
+      for (int tx = 0; tx < kTileColumns; ++tx) {
+        const auto& area = samples_[top + r][tx];
+        const uint32_t columns = (uint32_t(1) << area.right) - (uint32_t(1) << area.left);
+        if (!(columns & any)) continue;
+        for (int sy = area.top; sy < area.bottom; ++sy) {
+          if (columns & changes[sy]) {
+            rows[r] |= uint32_t(1) << tx;
+            break;
+          }
+        }
+      }
+      band |= rows[r];
+    }
+    while (band) {
+      const int left = __builtin_ctz(band);
+      const int right = left + __builtin_ctz(~(band >> left));
+      const uint32_t run = (uint32_t(1) << right) - (uint32_t(1) << left);
+      int first = 0, end = count;
+      while (!(rows[first] & run)) ++first;
+      while (!(rows[end - 1] & run)) --end;
+      const int x = left * 16, y = (top + first) * 16;
+      if (!writeWindow(source, transform, x, y, std::min(kPanelWidth, right * 16) - x,
+                       std::min(kPanelHeight, (top + end) * 16) - y)) {
+        hasShown_ = false;
+        frameMarginsDirty_ = true;
+        return false;
+      }
+      band &= ~run;
+    }
+  }
+  return true;
 }
 
 bool OrientedDisplay::flushSource(const ScreenPixels& source) {
@@ -158,30 +236,35 @@ bool OrientedDisplay::flushSource(const ScreenPixels& source) {
 
   const ScreenTransform transform(kPanelWidth, kPanelHeight, kDisplaySize, kShownContentSize,
                                   angle(), kRoundPanel && source.order == Rgb565Order::Display);
+  return writeWindow(source, transform, 0, 0, kPanelWidth, kPanelHeight);
+}
+
+bool OrientedDisplay::writeWindow(const ScreenPixels& source, const ScreenTransform& transform,
+                                  int x, int y, int width, int height) {
   const size_t capacity = dma_.bufferBytes() / sizeof(uint16_t);
   const int rowsPerBatch = static_cast<int>(std::min(
-      capacity / kPanelWidth, static_cast<size_t>(kPanelHeight)));
+      capacity / width, static_cast<size_t>(height)));
   panel_->startWrite();
-  panel_->writeAddrWindow(0, 0, kPanelWidth, kPanelHeight);
+  panel_->writeAddrWindow(x, y, width, height);
   panel_->endWrite();
   if (!dma_.start()) {
     error_ = dma_.error();
     return false;
   }
-  for (int y = 0; y < kPanelHeight; y += rowsPerBatch) {
-    const int rows = std::min(rowsPerBatch, kPanelHeight - y);
+  for (int row = 0; row < height; row += rowsPerBatch) {
+    const int rows = std::min(rowsPerBatch, height - row);
     const int64_t waiting = esp_timer_get_time();
     auto* output = reinterpret_cast<uint16_t*>(dma_.acquire());
     writeUs_ += esp_timer_get_time() - waiting;
     if (!output) break;
     const int64_t started = esp_timer_get_time();
-    if (!transform.renderRows(source, y, rows, output, capacity)) {
+    if (!transform.renderWindow(source, x, y + row, width, rows, output, capacity)) {
       error_ = "Display scanout failed.";
       break;
     }
     const int64_t composed = esp_timer_get_time();
     composeUs_ += composed - started;
-    if (!dma_.submit(rows * kPanelWidth * sizeof(uint16_t))) break;
+    if (!dma_.submit(rows * width * sizeof(uint16_t))) break;
     writeUs_ += esp_timer_get_time() - composed;
   }
   const int64_t waiting = esp_timer_get_time();

@@ -469,10 +469,10 @@ filters the angle, retains the last reliable angle when the display lies flat,
 and uses a fixed upright layout if the sensor cannot initialize. The gyroscope
 is not required for this gravity-based orientation.
 
-`OrientedDisplay` keeps a full-resolution menu canvas in PSRAM. Upright character
-frames retain the direct DMA-staged transfer. Other angles use the shared
-`ScreenTransform` to rotate every output pixel into the existing DMA buffer,
-without a second rotated framebuffer or 2-by-2 pixel duplication. Canvas colors
+`OrientedDisplay` keeps a full-resolution menu canvas in PSRAM. A full redraw of
+an upright, unscaled character uses a direct DMA-staged transfer. At other angles
+the shared `ScreenTransform` rotates the affected pixels into the existing DMA buffer.
+A change in orientation or a return from a menu triggers a full redraw. Canvas colors
 are converted from native RGB565; character pixels already have display byte
 order and are not converted again.
 
@@ -1303,11 +1303,33 @@ Install changed artwork with a full upload or `npm run character copilot`.
 - Per-framebuffer render keys avoid decoding or copying unchanged poses. Each
   output keeps only a small original-eye patch for reopening; there are no
   full-size decoded or working sprites in SRAM and no third PSRAM frame cache.
-  Persistent workspaces avoid allocation in the animation loop. Core 0 renders;
-  core 1 transfers complete big-endian RGB565 buffers to the display through the
-  existing DMA staging path. Presentation is paced independently of rendering,
-  so cached frames cannot arrive early and newly decoded poses late. The target
-  remains 30 displayed frames per second.
+  Persistent workspaces avoid allocation in the animation loop. Core 0 finishes
+  each RGB565 frame and marks the 16×16 tiles affected by pose, blink, or overlay
+  changes. Core 1 groups the affected panel tiles into windows for DMA transfer.
+  Unchanged pixels stay on the panel. Presentation is paced independently of
+  rendering, with a target of 60 displayed frames per second.
+- On devices that cache decoded base poses, the preloader predicts the next
+  idle turn during the pause at center. It reserves cache space for the known
+  sequence first, then uses spare space for the faster sections of expression
+  tracks. A pose that finishes loading between presentations can appear on the
+  next frame if it lies between the visible and requested poses. The motion and
+  blink clocks keep advancing independently.
+
+On a Waveshare AMOLED 1.75 with Copilot, a before-and-after USB test exercised
+idle, working, attention, surprise, and complete for 15 seconds each at two
+display angles (about −30° and −42°), with an agent badge and usage text visible.
+Across the five-second reports, mean render time went from 5.08 to 4.95 ms and
+mean panel composition and transfer time went from 19.53 to 3.91 ms per frame.
+The two stages run on separate cores. Mean presentation rate rose from 48.2 to
+59.3 fps, and the longest measured presentation interval fell from 25.7 to 24.8 ms.
+
+A separate on-device test isolated pose preloading. The same Copilot pack ran a
+fixed-seed, 5,100-frame sequence through all five modes at −39.6°, with a badge
+and usage text visible. Before the preloading change, 364 frames showed a late
+base pose. The final run had 251. The longest stretch where the head stayed on
+one pose while another was due fell from 23 presentations to 5. Average cadence
+was 59.0 and 59.1 fps respectively. All 17 checkpoints matched the requested
+motion sequence, and both runs passed the device heap integrity check.
 
 The optimized eight-track idle baseline completed a five-minute device soak:
 all 59 reports were **30.0 fps**, the maximum presentation interval was

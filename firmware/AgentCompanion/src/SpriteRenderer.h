@@ -59,12 +59,12 @@ class SpriteRenderer {
   void fillTileMask(const uint16_t* frame, uint32_t* tileMask, int tileRows) const;
   // Prefetch helpers for incremental background pose decoding into the packed PSRAM cache.
   bool poseBaseBlock(uint8_t direction, uint8_t index, SpriteBlock& out) const;
-  bool hasCachedPose(uint8_t direction, uint8_t index) const;
+  // Optionally protect this cached slot when reserving space for a later pose in the same lookahead.
+  bool hasCachedPose(uint8_t direction, uint8_t index, uint64_t* keep = nullptr) const;
   bool hasBaseForFrame(uint8_t direction, uint8_t index, const uint16_t* frame) const;
   void pinPose(uint8_t direction, uint8_t index);
-  bool wouldEvictPose(uint8_t direction, uint8_t index) const;
   bool evictPoolRange(size_t begin, size_t end, size_t& nextOverlap, bool allowPinned = false);
-  bool preparePrefetch(uint8_t direction, uint8_t index, PrefetchTarget& out);
+  bool preparePrefetch(uint8_t direction, uint8_t index, PrefetchTarget& out, uint64_t keep = 0);
   void commitPrefetch(const PrefetchTarget& target, size_t writtenPixels);
   void cancelPrefetch(const PrefetchTarget& target);
   const char* error() const { return error_; }
@@ -86,7 +86,7 @@ class SpriteRenderer {
   bool isPinnedSlot(const BaseCacheSlot& slot) const;
   size_t nextOverlapOffset(size_t fromOffset) const;
   int findCachedSlot(const SpriteBlock& base);
-  int reserveCacheSlot(size_t maxPixels, size_t& nextOverlap, bool allowPinned, bool& pinnedConflict);
+  int reserveCacheSlot(size_t maxPixels, size_t& nextOverlap, bool allowPinned, bool& pinnedConflict, uint64_t keep = 0);
   void copyPackedSlotToFrame(int slotIndex, uint16_t* art, int outputIndex,
                              const PackHeader& header, const SpriteFrame& entry);
   void clearPadding(uint16_t* frame, int top, const PackHeader& header);

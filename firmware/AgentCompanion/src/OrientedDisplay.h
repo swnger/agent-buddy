@@ -1,5 +1,5 @@
 #pragma once
-#include "Config.h"
+#include "FrameCoverage.h"
 #include "ScreenOrientation.h"
 #include "DisplayDma.h"
 #include <Arduino_GFX_Library.h>
@@ -16,6 +16,8 @@ class OrientedDisplay : public Arduino_Canvas {
   void flush(bool forceFlush = false) override;
   bool flushFrame(const uint16_t* pixels, int x, int y, int width, int height,
                   const uint32_t* tileMask = nullptr, int tileRows = 0);
+  bool flushAnimation(const uint16_t* pixels, const FrameCoverage& coverage,
+                      const FrameCoverage::Tiles& changes);
   bool setAngle(float radians);
   bool setTrim(float radians);
   float angle() const { return ScreenOrientation::shortestAngle(orientation_.angle() + trim_); }
@@ -27,6 +29,14 @@ class OrientedDisplay : public Arduino_Canvas {
 
  private:
   bool flushSource(const ScreenPixels& source);
+  bool writeWindow(const ScreenPixels& source, const ScreenTransform& transform,
+                   int x, int y, int width, int height);
+  static constexpr int kTileColumns = (kPanelWidth + 15) / 16;
+  static constexpr int kTileRows = (kPanelHeight + 15) / 16;
+  static_assert(kTileColumns < 32 && (kCharacterFrameWidth + 15) / 16 < 32);
+  ScreenTransform::TileRange samples_[kTileRows][kTileColumns];
+
+  bool hasShown_ = false, samplesValid_ = false;
   board::DisplayPanel* panel_;
   void (*setBrightness_)(uint8_t);
   uint8_t* transferBuffer_ = nullptr;

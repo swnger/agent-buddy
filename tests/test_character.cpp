@@ -589,6 +589,36 @@ static void benchmarkEffects() {
 }
 
 static void peekUpcomingTransitionsAndHolds() {
+  // Preloading during the neutral hold must predict the automatic or queued turn without
+  // advancing its RNG, consuming a queued request, or changing its blink timing.
+  for (bool queued : {false, true}) {
+    CharacterMotion motion(37, 13), reference(37, 13);
+    if (queued) {
+      assert(motion.requestIdleDirection(4));
+      assert(reference.requestIdleDirection(4));
+    }
+    SpritePose upcoming[24];
+    const size_t count = motion.peekUpcoming(upcoming, 24);
+    assert(count > 1 && upcoming[0].index == 1);
+    const auto direction = upcoming[0].direction;
+    if (queued) assert(direction == 4);
+    for (size_t index = 0; index < count; ++index)
+      assert(upcoming[index].direction == direction && upcoming[index].index == index + 1);
+    bool sawTurn = false;
+    for (int tick = 0; tick < 600; ++tick) {
+      motion.peekUpcoming(upcoming, 24);
+      motion.update(1. / 60);
+      reference.update(1. / 60);
+      const SpritePose pose = motion.state().pose, expected = reference.state().pose;
+      assert(pose.direction == expected.direction && pose.index == expected.index
+             && pose.blinkLevel == expected.blinkLevel && pose.blinkBlend == expected.blinkBlend);
+      if (!sawTurn && pose.index) {
+        assert(pose.direction == direction && pose.index == 1);
+        sawTurn = true;
+      }
+    }
+    assert(sawTurn);
+  }
   // Idle returning to center for a pending Working switch peeks track 9 right after the return.
   {
     CharacterMotion motion(42, 13);

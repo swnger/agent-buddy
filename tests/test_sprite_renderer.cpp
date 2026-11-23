@@ -326,6 +326,23 @@ int main() {
       assert(cached.render(pose, cFrame1.data()));
       assert(std::memcmp(frame, cFrame1.data(), outputPixels * 2) == 0);
     }
+
+    // Fill three equal ranges to force a wrap. The next two poses still need their slots
+    // and pixels. Reservation must skip both and reuse the third range, even when all
+    // metadata slots are occupied.
+    cached.setBaseCache(poolBuf.data(), poolBuf.size(), rowSpans.data(), 3);
+    for (uint8_t index : {5, 6, 7}) {
+      assert(cached.preparePrefetch(0, index, pt));
+      cached.commitPrefetch(pt, basePixels);
+    }
+    uint64_t keep = 0;
+    assert(cached.hasCachedPose(0, 5, &keep));
+    assert(cached.hasCachedPose(0, 6, &keep));
+    assert(cached.preparePrefetch(0, 8, pt, keep) && pt.poolOffset == 2 * basePixels);
+    cached.commitPrefetch(pt, basePixels);
+    assert(cached.hasCachedPose(0, 8, &keep));
+    assert(!cached.preparePrefetch(0, 9, pt, keep));
+    for (uint8_t index : {5, 6, 8}) assert(cached.hasCachedPose(0, index));
   }
 
   std::ofstream image("build/sprite-host-frame.ppm", std::ios::binary);

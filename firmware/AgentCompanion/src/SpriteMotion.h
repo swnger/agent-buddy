@@ -53,6 +53,8 @@ class SpriteMotion {
   double blinkWait() const { return blinkWait_; }
   bool doublePending() const { return doublePending_; }
   size_t queued() const { return queueSize_; }
+  // Predict the turn with the current queue and RNG without consuming either.
+  bool peekNextTurn(uint8_t& direction, uint8_t& depth) const;
 
  private:
   double random();

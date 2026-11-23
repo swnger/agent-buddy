@@ -40,6 +40,90 @@ std::vector<uint16_t> scanout(const copilot::ScreenPixels& source, float angle) 
              .renderRows(source, 0, kPanelHeight, expected.data(), expected.size()));
   return expected;
 }
+
+// Reconstruct retained panel memory from the address windows and the actual DMA payload.
+void checkAnimation(copilot::OrientedDisplay& display, StubPanel& panel, Arduino_DataBus& bus) {
+  using namespace copilot;
+  std::vector<uint16_t> pixels(kCharacterFrameWidth * kCharacterFrameHeight);
+  const ScreenPixels source{pixels.data(), kCharacterFrameX, 0, kCharacterFrameWidth,
+                            kCharacterFrameHeight, Rgb565Order::Display};
+  std::vector<uint16_t> shown(kPanelWidth * kPanelHeight, 0xcafe);
+  FrameCoverage coverage, previous;
+  std::vector<uint16_t> previousPixels(pixels.size());
+  auto resetLog = [&] {
+    bus.bytes.clear();
+    panel.windows.clear();
+    panel.clears.clear();
+  };
+  auto checkFrame = [&] {
+    resetLog();
+    const auto changes = coverage.changesFrom(previous, pixels.data(), previousPixels.data());
+    assert(display.flushAnimation(pixels.data(), coverage, changes));
+    previous = coverage;
+    previousPixels = pixels;
+    size_t offset = 0;
+    for (const auto& r : panel.clears)
+      for (int row = r.y; row < r.y + r.height; ++row)
+        std::fill_n(shown.data() + row * kPanelWidth + r.x, r.width, 0);
+    for (const auto& r : panel.windows) {
+      assert(r.x >= 0 && r.y >= 0 && r.x + r.width <= kPanelWidth && r.y + r.height <= kPanelHeight);
+      for (int row = r.y; row < r.y + r.height; ++row) {
+        const size_t bytes = r.width * sizeof(uint16_t);
+        assert(offset + bytes <= bus.bytes.size());
+        std::memcpy(shown.data() + row * kPanelWidth + r.x, bus.bytes.data() + offset, bytes);
+        offset += bytes;
+      }
+    }
+    assert(offset == bus.bytes.size());
+    assert(shown == scanout(source, display.angle()));
+  };
+  auto paint = [&](FrameCoverage::Tiles& tiles, int x, int y, uint16_t color) {
+    pixels[y * kCharacterFrameWidth + x] = color;
+    tiles[y / 16] |= uint32_t(1) << (x / 16);
+  };
+  for (float angle : {0.f, .61f, -1.57f, 2.1f, kOrientationPi}) {
+    display.setAngle(angle);
+    display.fillScreen(0xabcd);
+    display.flush();
+    // Dirty menus/margins and changes of angle invalidate the retained character.
+    std::fill(shown.begin(), shown.end(), 0xcafe);
+    checkFrame();
+    for (int i = 0; i < 20; ++i) {
+      const int x = (i * 31 + 15) % kCharacterFrameWidth;
+      const int y = (i * 47 + 16) % kCharacterFrameHeight;
+      if (i % 4 == 0) {
+        ++coverage.pose.index;
+        coverage.art.fill(0);
+        std::fill(pixels.begin(), pixels.end(), 0);
+        for (int dy = 0; dy < 32; ++dy)
+          for (int dx = 0; dx < 23; ++dx)
+            paint(coverage.art, 112 + i + dx, 200 + dy, 0x137d);
+      }
+      if (i % 4 == 1) {
+        // A blink and a moving effect share this frame. The rest of the head holds.
+        ++coverage.pose.blinkBlend;
+        coverage.setEyes(112, 200, 40, 16);
+        paint(coverage.art, 120 + i, 200, 0x7c26);
+      }
+      const uint16_t under = pixels[y * kCharacterFrameWidth + x];
+      paint(coverage.effects, x, y, 0xcffd);
+      checkFrame();
+      coverage.effects.fill(0);
+      pixels[y * kCharacterFrameWidth + x] = under;
+      checkFrame();
+      assert(bus.bytes.size() < shown.size() * sizeof(uint16_t) / 4);
+      checkFrame();
+      assert(panel.windows.empty() && bus.bytes.empty());
+    }
+  }
+  // A partial update that fails leaves unknown panel contents. The retry must repaint everything.
+  paint(coverage.effects, 205, 233, 0xffff);
+  spi_stub::failSubmission = 0;
+  const auto changes = coverage.changesFrom(previous, pixels.data(), previousPixels.data());
+  assert(!display.flushAnimation(pixels.data(), coverage, changes));
+  std::fill(shown.begin(), shown.end(), 0xcafe);
+  checkFrame();
+}
 }
 
 int main() {
@@ -210,6 +294,7 @@ int main() {
   assert(std::fabs(display.angle() - kOrientationPi / 360) < 0.00001f);
   assert(display.setTrim(0));
   assert(display.angle() == 0);
+  checkAnimation(display, panel, bus);
   std::cout << "PASS: " << board::kId
             << " display scanout, DMA-only writes, menu colors and upright margin recovery\n";
 }

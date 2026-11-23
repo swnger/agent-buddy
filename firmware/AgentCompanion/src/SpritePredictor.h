@@ -40,8 +40,6 @@ class SpritePredictor {
     stride_ = stride;
     column_ = row_ = 0;
     changes_ = changes;
-    rowFirst_ = static_cast<int>(width);
-    rowLast_ = 0;
     if (changes) std::fill(changes, changes + bytes / 2 / width, SpriteRowChange{static_cast<uint16_t>(width), 0});
     std::memset(previous_, 0, width * sizeof(previous_[0]));
     return true;
@@ -61,8 +59,6 @@ class SpritePredictor {
     stride_ = width;
     column_ = row_ = 0;
     changes_ = nullptr;
-    rowFirst_ = static_cast<int>(width);
-    rowLast_ = 0;
     std::memset(previous_, 0, width * sizeof(previous_[0]));
     return true;
   }
@@ -75,42 +71,12 @@ class SpritePredictor {
       const size_t count = left < width_ - column_ ? left : width_ - column_;
       uint16_t* prev = previous_ + column_;
       uint16_t* out = swapped_ + column_;
-      if (onRow_) {
-        int first = rowFirst_;
-        int last = rowLast_;
-        const int baseCol = static_cast<int>(column_);
-        const uint8_t* enc = encoded;
-        for (size_t i = 0; i < count; ++i, enc += 2) {
-          const uint16_t d0 = static_cast<uint16_t>((static_cast<uint16_t>(enc[0]) << 8) | enc[1]);
-          const uint16_t p0 = prev[i];
-          if ((d0 | p0) == 0u) {
-            out[i] = 0;
-            continue;
-          }
-          const uint16_t v0 = static_cast<uint16_t>(p0 + d0);
-          prev[i] = v0;
-          out[i] = __builtin_bswap16(v0);
-          if (v0) {
-            const int c0 = baseCol + static_cast<int>(i);
-            if (c0 < first) first = c0;
-            last = c0 + 1;
-          }
-        }
-        rowFirst_ = first;
-        rowLast_ = last;
-      } else {
-        const uint8_t* enc = encoded;
-        for (size_t i = 0; i < count; ++i, enc += 2) {
-          const uint16_t d0 = static_cast<uint16_t>((static_cast<uint16_t>(enc[0]) << 8) | enc[1]);
-          const uint16_t p0 = prev[i];
-          if ((d0 | p0) == 0u) {
-            out[i] = 0;
-            continue;
-          }
-          const uint16_t v0 = static_cast<uint16_t>(p0 + d0);
-          prev[i] = v0;
-          out[i] = __builtin_bswap16(v0);
-        }
+      for (size_t i = 0; i < count; ++i) {
+        const uint16_t residual = (uint16_t(encoded[2 * i]) << 8) | encoded[2 * i + 1];
+        prev[i] = static_cast<uint16_t>(prev[i] + residual);
+        out[i] = __builtin_bswap16(prev[i]);
+      }
+      if (!onRow_) {
         // Reconstruct in internal RAM, then burst-copy instead of individual PSRAM stores.
         if (changes_) {
           size_t first = 0, last = count;
@@ -133,9 +99,11 @@ class SpritePredictor {
       column_ += count;
       if (column_ == width_) {
         if (onRow_) {
-          onRow_(onRowCtx_, row_, swapped_, rowFirst_, rowLast_);
-          rowFirst_ = static_cast<int>(width_);
-          rowLast_ = 0;
+          // The packed cache needs only the two edges, even for a row split across inflate chunks.
+          int first = 0, end = static_cast<int>(width_);
+          while (first < end && !swapped_[first]) ++first;
+          while (first < end && !swapped_[end - 1]) --end;
+          onRow_(onRowCtx_, row_, swapped_, first, end);
         } else if (remaining_) {
           output_ += stride_ - width_;
         }
@@ -155,7 +123,6 @@ class SpritePredictor {
   uint16_t* output_ = nullptr;
   SpriteRowCallback onRow_ = nullptr;
   void* onRowCtx_ = nullptr;
-  int rowFirst_ = 0, rowLast_ = 0;
   size_t width_ = 0, stride_ = 0, column_ = 0, row_ = 0, remaining_ = 0;
   SpriteRowChange* changes_ = nullptr;
 };

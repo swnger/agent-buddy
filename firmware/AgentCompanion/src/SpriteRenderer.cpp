@@ -210,14 +210,18 @@ bool SpriteRenderer::poseBaseBlock(uint8_t direction, uint8_t index, SpriteBlock
   return out.size > 0;
 }
 
-bool SpriteRenderer::hasCachedPose(uint8_t direction, uint8_t index) const {
+bool SpriteRenderer::hasCachedPose(uint8_t direction, uint8_t index, uint64_t* keep) const {
+  static_assert(kMaxBaseCacheSlots <= 64);
   const CharacterPack* pack = characterPack();
   if (!pack || !basePool_ || !cacheRowSpans_ || cachePackData_ != pack->data) return false;
   SpriteBlock base;
   if (!poseBaseBlock(direction, index, base)) return false;
   for (size_t i = 0; i < baseCacheSlots_; ++i) {
     const auto& slot = cacheSlots_[i];
-    if (slot.valid && slot.offset == base.offset && slot.size == base.size) return true;
+    if (slot.valid && slot.offset == base.offset && slot.size == base.size) {
+      if (keep) *keep |= uint64_t(1) << i;
+      return true;
+    }
   }
   return false;
 }
@@ -284,42 +288,7 @@ bool SpriteRenderer::evictPoolRange(size_t begin, size_t end, size_t& nextOverla
   return true;
 }
 
-bool SpriteRenderer::wouldEvictPose(uint8_t direction, uint8_t index) const {
-  const CharacterPack* pack = characterPack();
-  if (!pack || !basePool_ || !cacheRowSpans_ || cachePackData_ != pack->data) return false;
-  const size_t basePixels = static_cast<size_t>(pack->header.baseWidth) * pack->header.baseHeight;
-  if (basePixels == 0 || basePixels > basePoolPixels_) return false;
-  SpriteBlock target{};
-  if (!poseBaseBlock(direction, index, target)) return false;
-  const BaseCacheSlot* targetSlot = nullptr;
-  for (size_t i = 0; i < baseCacheSlots_; ++i) {
-    const auto& s = cacheSlots_[i];
-    if (s.valid && s.offset == target.offset && s.size == target.size) {
-      targetSlot = &s;
-      break;
-    }
-  }
-  if (!targetSlot || targetSlot->pixelCount == 0) return false;
-  size_t candidate = basePoolHead_;
-  if (candidate + basePixels > basePoolPixels_) candidate = 0;
-  for (size_t attempt = 0; attempt <= baseCacheSlots_ + 2; ++attempt) {
-    const size_t rangeEnd = candidate + basePixels;
-    size_t blockerEnd = 0;
-    for (size_t i = 0; i < baseCacheSlots_; ++i) {
-      const auto& s = cacheSlots_[i];
-      if (!s.valid || s.pixelCount == 0 || !isPinnedSlot(s)) continue;
-      const size_t sEnd = s.poolOffset + s.pixelCount;
-      if (s.poolOffset < rangeEnd && sEnd > candidate && sEnd > blockerEnd) blockerEnd = sEnd;
-    }
-    if (blockerEnd == 0) break;
-    candidate = blockerEnd;
-    if (candidate + basePixels > basePoolPixels_) candidate = 0;
-  }
-  const size_t targetEnd = targetSlot->poolOffset + targetSlot->pixelCount;
-  return targetSlot->poolOffset < candidate + basePixels && targetEnd > candidate;
-}
-
-bool SpriteRenderer::preparePrefetch(uint8_t direction, uint8_t index, PrefetchTarget& out) {
+bool SpriteRenderer::preparePrefetch(uint8_t direction, uint8_t index, PrefetchTarget& out, uint64_t keep) {
   out = {};
   const CharacterPack* pack = characterPack();
   if (!pack || pack->header.layout != PackLayout::BasePatch
@@ -343,7 +312,7 @@ bool SpriteRenderer::preparePrefetch(uint8_t direction, uint8_t index, PrefetchT
   }
   size_t nextOverlap = basePoolPixels_;
   bool pinnedConflict = false;
-  const int chosen = reserveCacheSlot(basePixels, nextOverlap, false, pinnedConflict);
+  const int chosen = reserveCacheSlot(basePixels, nextOverlap, false, pinnedConflict, keep);
   if (chosen < 0) return false;
   out.slot = chosen;
   out.poolOffset = basePoolHead_;
@@ -397,7 +366,7 @@ int SpriteRenderer::findCachedSlot(const SpriteBlock& base) {
 }
 
 int SpriteRenderer::reserveCacheSlot(size_t maxPixels, size_t& nextOverlap,
-                                     bool allowPinned, bool& pinnedConflict) {
+                                     bool allowPinned, bool& pinnedConflict, uint64_t keep) {
   pinnedConflict = false;
   if (maxPixels > basePoolPixels_) return -1;
   size_t candidate = basePoolHead_;
@@ -408,7 +377,7 @@ int SpriteRenderer::reserveCacheSlot(size_t maxPixels, size_t& nextOverlap,
     size_t blockerEnd = 0;
     for (size_t i = 0; i < baseCacheSlots_; ++i) {
       const auto& s = cacheSlots_[i];
-      if (!s.valid || s.pixelCount == 0 || !isPinnedSlot(s)) continue;
+      if (!s.valid || s.pixelCount == 0 || (!isPinnedSlot(s) && !(keep & (uint64_t(1) << i)))) continue;
       const size_t sEnd = s.poolOffset + s.pixelCount;
       if (s.poolOffset < rangeEnd && sEnd > candidate && sEnd > blockerEnd) blockerEnd = sEnd;
     }
@@ -435,7 +404,7 @@ int SpriteRenderer::reserveCacheSlot(size_t maxPixels, size_t& nextOverlap,
       chosen = static_cast<int>(i);
       break;
     }
-    if (isPinnedSlot(cacheSlots_[i])) continue;
+    if (isPinnedSlot(cacheSlots_[i]) || (keep & (uint64_t(1) << i))) continue;
     if (chosen < 0 || cacheSlots_[i].lastUsed < oldest) {
       oldest = cacheSlots_[i].lastUsed;
       chosen = static_cast<int>(i);
